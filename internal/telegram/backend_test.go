@@ -530,6 +530,44 @@ func TestTelegramMarkReadAcknowledgesAndPersists(t *testing.T) {
 	}
 }
 
+func TestTelegramMarkReadAllowsConversationWatermark(t *testing.T) {
+	b, paths, _, mock := setupTestTelegramWithMock(t)
+	b.SetClient(mock)
+	var gotMessage int64 = -1
+	mock.MarkReadFunc = func(_ context.Context, conversationID, messageID int64) error {
+		if conversationID != 7 {
+			t.Fatalf("conversation ID = %d, want 7", conversationID)
+		}
+		gotMessage = messageID
+		return nil
+	}
+	b.AddTestConversation(wire.Conversation{ID: "tg:7", Name: "Service event", Unread: true})
+
+	if err := b.MarkRead(context.Background(), wire.MarkReadParams{ConversationID: "tg:7"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotMessage != 0 {
+		t.Fatalf("message ID = %d, want conversation-level watermark request", gotMessage)
+	}
+	if b.Conversations(1)[0].Unread {
+		t.Fatal("empty conversation remained unread")
+	}
+	data, err := os.ReadFile(paths.TelegramStoreFile())
+	if err != nil || strings.Contains(string(data), `"unread":true`) {
+		t.Fatalf("unread state was not persisted: err=%v data=%s", err, data)
+	}
+}
+
+func TestTelegramReadWatermarkFallsBackToDialogTopMessage(t *testing.T) {
+	g := &GotdClient{topMessages: map[int64]int{7: 42}}
+	if got := g.readWatermark(7, 0); got != 42 {
+		t.Fatalf("read watermark = %d, want dialog top message 42", got)
+	}
+	if got := g.readWatermark(7, 9); got != 9 {
+		t.Fatalf("explicit read watermark = %d, want 9", got)
+	}
+}
+
 func TestTelegramMarkReadRejectsMalformedIDs(t *testing.T) {
 	b, _, _, mock := setupTestTelegramWithMock(t)
 	called := false
