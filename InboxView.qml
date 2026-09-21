@@ -369,13 +369,15 @@ Item {
   }
 
   function markThreadRead() {
-    if (!panelOpen || !service || selectedConvID === "" || messages.length === 0) return
+    if (!panelOpen || !service || selectedConvID === "") return
     var last = null
     for (var i = messages.length - 1; i >= 0; i--) {
       if (messages[i].id && !messages[i].provisional) { last = messages[i]; break }
     }
-    if (!last) return
-    service.call("markRead", { conversationID: selectedConvID, messageID: last.id }, null, root.network)
+    // Encrypted Messenger history may be unavailable even though the thread is
+    // unread. Messenger marks the thread by timestamp, so it needs no message ID.
+    if (!last && !(isMessenger && selectedConv && selectedConv.unread === true)) return
+    service.call("markRead", { conversationID: selectedConvID, messageID: last ? last.id : "" }, null, root.network)
   }
 
   function sendMessage(rawText) {
