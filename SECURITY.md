@@ -19,7 +19,7 @@ or working exploit details in a public issue.
 - WhatsApp chat cache: `~/.local/share/omachat/whatsapp_store.json` (0600)
 - Telegram session and chat cache: `~/.local/share/omachat/telegram.session` and `telegram_store.json` (0600)
 - Messenger session, encrypted-device state, and chat cache: `~/.local/share/omachat/messenger.db` and `messenger_store.json` (0600)
-- Signal linked-device keys and local message cache: `~/.local/share/omachat/signal-cli/` and `signal_store.json` (0600 files inside 0700 directories)
+- Signal linked-device keys and local message cache: `~/.local/share/omachat/signal-cli/` and `signal_store.json`; OmaChat creates the enclosing directories as 0700 and its message cache as 0600, while file modes within the `signal-cli`-managed directory are controlled by `signal-cli`
 - Config (browser profile, Telegram API credentials): `~/.local/share/omachat/config.json` (0600)
 - Attachment cache: `~/.cache/omachat/media/`, `media_whatsapp/`, `media_telegram/`, `media_messenger/`, and `media_signal/`
 - Telegram conversation caches from before typed peer IDs are ignored on upgrade;
