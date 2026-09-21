@@ -23,6 +23,8 @@ Panel {
   property string unpairError: ""
   property int accountGeneration: 0
   property string popoutMode: "floating"
+  property bool alwaysPopout: false
+  property bool panelConfigLoaded: false
   property string appliedPopoutMode: ""
   property string popoutModeError: ""
   property string popoutAddress: ""
@@ -156,7 +158,12 @@ Panel {
 
   function open() {
     if (popoutOpen) return
-    root.controller.show()
+    if (!panelConfigLoaded && service) {
+      loadConfig(true)
+      return
+    }
+    if (alwaysPopout) openPopout()
+    else root.controller.show()
   }
 
   function close() {
@@ -170,7 +177,7 @@ Panel {
   function toggle() {
     if (popoutOpen) closePopout(false)
     else if (opened) root.controller.hide()
-    else root.controller.show()
+    else root.open()
   }
 
   function openPopout() {
@@ -246,13 +253,22 @@ Panel {
     }
   }
 
-  function loadConfig() {
-    if (!service) return
+  function loadConfig(openAfter) {
+    if (!service) {
+      panelConfigLoaded = true
+      if (openAfter) root.open()
+      return
+    }
     service.call("config", null, function(ok, res) {
-      if (!ok || !res) return
-      if (typeof service.applyServiceConfig === "function" && !service.savingServices) service.applyServiceConfig(res)
-      var s = Number(res.uiScale)
-      if (isFinite(s) && s > 0) root.uiScale = s
+      if (ok && res) {
+        if (typeof service.applyServiceConfig === "function" && !service.savingServices) service.applyServiceConfig(res)
+        var s = Number(res.uiScale)
+        if (isFinite(s) && s > 0) root.uiScale = s
+        root.alwaysPopout = res.alwaysPopout === true
+        root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
+      }
+      root.panelConfigLoaded = true
+      if (openAfter) root.open()
     }, "gmessages")
   }
 
@@ -270,7 +286,8 @@ Panel {
     accountGeneration++
     unpairing = false
     unpairError = ""
-    loadConfig()
+    panelConfigLoaded = false
+    loadConfig(false)
   }
 
   Component.onCompleted: syncRestartResume()
@@ -823,6 +840,11 @@ Panel {
       fontFamily: root.fontFamily
       uiScale: root.uiScale
       onScaleSaved: function(s) { root.uiScale = s }
+      onWindowPreferencesSaved: function(always, mode) {
+        root.alwaysPopout = always
+        root.popoutMode = mode
+        root.panelConfigLoaded = true
+      }
     }
   }
 

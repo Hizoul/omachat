@@ -12,6 +12,7 @@ Flickable {
   property string fontFamily: Style.font.family
   property real uiScale: 1
   signal scaleSaved(real scale)
+  signal windowPreferencesSaved(bool alwaysPopout, string popoutMode)
   function fs(n) { return Math.max(12, Math.round(Number(n) * uiScale)) }
 
   function readableInk(surface, preferred, minRatio) {
@@ -33,6 +34,10 @@ Flickable {
   readonly property string coffeeUrl: "https://buymeacoffee.com/onelegdave"
 
   property string statusText: ""
+  property bool alwaysPopout: false
+  property string popoutMode: "floating"
+  property string windowStatusText: ""
+  property bool savingWindowPreferences: false
 
   property bool telegramConfigured: false
   property int telegramApiId: 0
@@ -61,6 +66,25 @@ Flickable {
       root.telegramApiId = Number(res.telegramApiId) || 0
       var s = Number(res.uiScale)
       if (isFinite(s) && s > 0) root.uiScale = s
+      root.alwaysPopout = res.alwaysPopout === true
+      root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
+    }, "gmessages")
+  }
+
+  function saveWindowPreferences(always, mode) {
+    if (!service || savingWindowPreferences) return
+    savingWindowPreferences = true
+    windowStatusText = ""
+    service.call("setWindowPreferences", { alwaysPopout: always, popoutMode: mode }, function(ok, res) {
+      root.savingWindowPreferences = false
+      if (!ok) {
+        root.windowStatusText = String(res)
+        root.load()
+        return
+      }
+      root.alwaysPopout = res && res.alwaysPopout === true
+      root.popoutMode = res && res.popoutMode === "tiled" ? "tiled" : "floating"
+      root.windowPreferencesSaved(root.alwaysPopout, root.popoutMode)
     }, "gmessages")
   }
 
@@ -168,6 +192,7 @@ Flickable {
         model: [
           {label:"Updates", section:updatesSection},
           {label:"Services", section:serviceChoices},
+          {label:"Appearance", section:windowSection},
           {label:"Service guides", section:servicesSection},
           {label:"Tools", section:toolsSection},
           {label:"Telegram API", section:telegramSection},
@@ -205,6 +230,90 @@ Flickable {
       service:root.service
       fontFamily:root.fontFamily
       uiScale:root.uiScale
+    }
+
+    Column {
+      id: windowSection
+      width: parent.width
+      spacing: Style.space(8)
+
+      Text {
+        width: parent.width
+        text: "Opening behavior"
+        color: root.copyColor
+        font.family: root.fontFamily
+        font.pixelSize: fs(Style.font.body)
+        font.bold: true
+      }
+
+      Text {
+        width: parent.width
+        wrapMode: Text.Wrap
+        text: "Choose whether opening OmaChat from the bar uses the anchored panel or its standalone window."
+        color: root.mutedColor
+        font.family: root.fontFamily
+        font.pixelSize: fs(Style.font.body)
+      }
+
+      Controls.Switch {
+        id: alwaysPopoutSwitch
+        objectName: "alwaysPopoutSwitch"
+        text: "Always open popped out"
+        checked: root.alwaysPopout
+        enabled: !root.savingWindowPreferences
+        palette.text: root.foreground
+        palette.highlight: root.accentColor
+        onToggled: root.saveWindowPreferences(checked, root.popoutMode)
+      }
+
+      Column {
+        width: parent.width
+        visible: root.alwaysPopout
+        spacing: Style.space(6)
+
+        Text {
+          width: parent.width
+          text: "Pop-out layout"
+          color: root.copyColor
+          font.family: root.fontFamily
+          font.pixelSize: fs(Style.font.bodySmall)
+          font.bold: true
+        }
+
+        ChoiceGroup {
+          objectName: "defaultPopoutMode"
+          width: parent.width
+          options: [
+            { value: "floating", label: "Floating" },
+            { value: "tiled", label: "Tiled" }
+          ]
+          value: root.popoutMode
+          foreground: root.foreground
+          background: root.popupBg
+          accent: root.accentColor
+          fontFamily: root.fontFamily
+          fontSize: fs(Style.font.body)
+          focusable: true
+          enabled: !root.savingWindowPreferences
+          onChanged: function(v) { root.saveWindowPreferences(true, v) }
+        }
+      }
+
+      Text {
+        width: parent.width
+        visible: root.windowStatusText !== ""
+        wrapMode: Text.Wrap
+        text: root.windowStatusText
+        color: root.urgentColor
+        font.family: root.fontFamily
+        font.pixelSize: fs(Style.font.caption)
+      }
+    }
+
+    Rectangle {
+      width: parent.width
+      height: 1
+      color: Color.popups.border
     }
 
     // Section 2: Interface Scale

@@ -45,6 +45,11 @@ window and do not change your desktop-wide window settings. Select
 **Return to panel** to move the same conversation view, including its current
 drafts and selection, back to the bar.
 
+In **Settings > Appearance**, enable **Always open popped out** to make future
+bar or IPC opens use the standalone window automatically, then choose whether
+that window should open **Floating** or **Tiled**. The preference does not open
+OmaChat at shell login, and disabling it restores the anchored-panel default.
+
 **OmaChat never installs dependencies automatically.** Settings includes a
 dependency checklist with source-review links and optional Install buttons.
 Installation opens a terminal for your confirmation and keeps the package

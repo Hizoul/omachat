@@ -32,6 +32,11 @@ type Config struct {
 	// and is treated as 1 when read.
 	UiScale float64 `json:"uiScale,omitempty"`
 
+	// AlwaysPopout opens OmaChat in its standalone window instead of the
+	// anchored bar panel. PopoutMode is "floating" or "tiled".
+	AlwaysPopout bool   `json:"alwaysPopout,omitempty"`
+	PopoutMode   string `json:"popoutMode,omitempty"`
+
 	// TelegramAPIID is the application api_id from my.telegram.org.
 	TelegramAPIID int `json:"telegramApiID,omitempty"`
 
@@ -282,6 +287,19 @@ func (c *ConfigStore) SetUiScale(scale float64) error {
 	return c.updateLocked(func(cfg map[string]any, loaded *Config) {
 		cfg["uiScale"] = scale
 		loaded.UiScale = scale
+	})
+}
+
+// SetWindowPreferences persists how OmaChat opens from the bar.
+func (c *ConfigStore) SetWindowPreferences(alwaysPopout bool, mode string) error {
+	if mode != "floating" && mode != "tiled" {
+		return fmt.Errorf("invalid pop-out mode %q", mode)
+	}
+	return c.updateLocked(func(cfg map[string]any, loaded *Config) {
+		cfg["alwaysPopout"] = alwaysPopout
+		cfg["popoutMode"] = mode
+		loaded.AlwaysPopout = alwaysPopout
+		loaded.PopoutMode = mode
 	})
 }
 

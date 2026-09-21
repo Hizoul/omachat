@@ -93,6 +93,7 @@ const (
 	MethodReact                  = "react"
 	MethodDiscardCapture         = "discardCapture"
 	MethodSetUiScale             = "setUiScale"
+	MethodSetWindowPreferences   = "setWindowPreferences"
 	MethodConfig                 = "config"
 	MethodUnpair                 = "unpair"
 	MethodMedia                  = "media"
@@ -386,6 +387,8 @@ type ConfigResult struct {
 	ServiceSelectionRequired bool     `json:"serviceSelectionRequired"`
 	RestartRequired          bool     `json:"restartRequired"`
 	UiScale                  float64  `json:"uiScale"`
+	AlwaysPopout             bool     `json:"alwaysPopout"`
+	PopoutMode               string   `json:"popoutMode"`
 	TelegramConfigured       bool     `json:"telegramConfigured"`
 	TelegramAPIID            int      `json:"telegramApiId,omitempty"`
 }
@@ -396,6 +399,11 @@ type SetEnabledServicesParams struct {
 
 type SetUiScaleParams struct {
 	Scale float64 `json:"scale"`
+}
+
+type SetWindowPreferencesParams struct {
+	AlwaysPopout bool   `json:"alwaysPopout"`
+	PopoutMode   string `json:"popoutMode"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

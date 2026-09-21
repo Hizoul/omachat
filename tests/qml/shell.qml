@@ -79,7 +79,8 @@ ShellRoot {
    if (!callback) return
    if (method === "messages") callback(true, {messages:[]})
    else if (method === "media") callback(!failMedia, failMedia ? "temporary failure" : {path:root.testImage})
-   else if (method === "config") callback(true,{uiScale:1,telegramConfigured:false,telegramApiId:0})
+   else if (method === "config") callback(true,{uiScale:1,alwaysPopout:false,popoutMode:"floating",telegramConfigured:false,telegramApiId:0})
+   else if (method === "setWindowPreferences") callback(true,{uiScale:1,alwaysPopout:params.alwaysPopout,popoutMode:params.popoutMode,telegramConfigured:false,telegramApiId:0})
    else if (method === "setTelegramCredentials") {
      var isConfigured = params && params.apiId > 0 && !!params.apiHash
      callback(true,{uiScale:1,telegramConfigured:isConfigured,telegramApiId:isConfigured ? params.apiId : 0})
@@ -171,6 +172,10 @@ ShellRoot {
     var caption = inspect.findChild(inbox,"attachCaption")
     var search = inspect.findChild(inbox,"searchField")
     root.check(composer && caption && search,"real inbox editors load")
+    settings.saveWindowPreferences(true,"tiled")
+    root.check(settings.alwaysPopout && settings.popoutMode === "tiled","window opening preferences save through the helper")
+    root.check(fake.calls.some(function(c){return c.method === "setWindowPreferences" && c.params.alwaysPopout === true && c.params.popoutMode === "tiled"}),"window preference request preserves enabled state and layout")
+    root.check(inspect.findChild(settings,"alwaysPopoutSwitch") !== null && inspect.findChild(settings,"defaultPopoutMode") !== null,"Settings exposes auto pop-out and layout controls")
     inbox.selectConversation("a")
     composer.text="Alice draft"
     caption.text="Alice caption"
