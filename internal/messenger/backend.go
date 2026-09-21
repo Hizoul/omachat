@@ -616,6 +616,12 @@ func (b *Backend) upsertThreadLocked(id int64, name, preview string, ts, readTS 
 	}
 	if current, ok := b.convs[key]; ok {
 		group = group || current.IsGroup
+		// Sync can replay a thread row with a stale read watermark after the
+		// user has already read the same activity locally. Only newer activity
+		// may turn that conversation unread again.
+		if !current.Unread && messengerTimestamp(ts) <= current.Timestamp {
+			unread = false
+		}
 	}
 	// A later, non-hybrid-aware thread row (e.g. a plain inbox refresh) can
 	// report a generic type for a thread already known to be an encrypted
