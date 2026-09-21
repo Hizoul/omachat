@@ -561,8 +561,8 @@ Panel {
       // The stock catcher consumes them for panels with a custom cursor model.
       Keys.onPressed: function(event) {
         var editing = inboxLoader.visible && inboxLoader.item && (inboxLoader.item.composerFocus || inboxLoader.item.linkConfirmOpen)
-        if (editing || root.settingsOpen) return
         if (event.key === Qt.Key_Escape) { root.close(); event.accepted = true; return }
+        if (editing || root.settingsOpen) return
         if (event.text === "1") { root.setActiveService("gmessages"); event.accepted = true }
         else if (event.text === "2") { root.setActiveService("whatsapp"); event.accepted = true }
         else if (event.text === "3") { root.setActiveService("telegram"); event.accepted = true }
@@ -898,8 +898,8 @@ Panel {
       onScaleSaved: function(s) { root.uiScale = s }
       onWindowPreferencesSaved: function(always, mode) {
         root.alwaysPopout = always
-        root.popoutMode = mode
         root.panelConfigLoaded = true
+        root.setPopoutMode(mode)
       }
     }
   }
