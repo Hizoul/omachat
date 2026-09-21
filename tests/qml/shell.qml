@@ -104,6 +104,7 @@ ShellRoot {
   TestResult { id: inspect }
  }
  Chat.Panel { id: panel; service: fake }
+ Chat.Panel { id: delayedPanel }
  Chat.SettingsView { id: settings; visible: false; service: fake }
  Chat.ServiceOptions { id: serviceOptions; parent:window.contentItem; width:600; visible:false; service:fake }
  Chat.DependencyChecklist {
@@ -172,6 +173,11 @@ ShellRoot {
     var caption = inspect.findChild(inbox,"attachCaption")
     var search = inspect.findChild(inbox,"searchField")
     root.check(composer && caption && search,"real inbox editors load")
+    delayedPanel.open()
+    root.check(!delayedPanel.opened && delayedPanel.openPendingConfig,"opening waits for persisted preferences when the service is not injected yet")
+    delayedPanel.service=fake
+    root.check(delayedPanel.opened && !delayedPanel.openPendingConfig,"pending open resumes after persisted preferences load")
+    delayedPanel.close()
     settings.saveWindowPreferences(true,"tiled")
     root.check(settings.alwaysPopout && settings.popoutMode === "tiled","window opening preferences save through the helper")
     root.check(fake.calls.some(function(c){return c.method === "setWindowPreferences" && c.params.alwaysPopout === true && c.params.popoutMode === "tiled"}),"window preference request preserves enabled state and layout")

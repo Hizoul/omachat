@@ -25,6 +25,7 @@ Panel {
   property string popoutMode: "floating"
   property bool alwaysPopout: false
   property bool panelConfigLoaded: false
+  property bool openPendingConfig: false
   property string appliedPopoutMode: ""
   property string popoutModeError: ""
   property string popoutAddress: ""
@@ -158,15 +159,21 @@ Panel {
 
   function open() {
     if (popoutOpen) return
-    if (!panelConfigLoaded && service) {
-      loadConfig(true)
+    if (!panelConfigLoaded) {
+      openPendingConfig = true
+      if (service) loadConfig(true)
       return
     }
+    openPendingConfig = false
     if (alwaysPopout) openPopout()
     else root.controller.show()
   }
 
   function close() {
+    if (openPendingConfig) {
+      openPendingConfig = false
+      return
+    }
     if (popoutPrepareProcess.running) {
       popoutPrepareProcess.openRequested = false
       popoutPrepareProcess.running = false
@@ -275,8 +282,7 @@ Panel {
 
   function loadConfig(openAfter) {
     if (!service) {
-      panelConfigLoaded = true
-      if (openAfter) root.open()
+      panelConfigLoaded = false
       return
     }
     service.call("config", null, function(ok, res) {
@@ -288,7 +294,7 @@ Panel {
         root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
       }
       root.panelConfigLoaded = true
-      if (openAfter) root.open()
+      if (openAfter || root.openPendingConfig) root.open()
     }, "gmessages")
   }
 
@@ -307,7 +313,7 @@ Panel {
     unpairing = false
     unpairError = ""
     panelConfigLoaded = false
-    loadConfig(false)
+    loadConfig(openPendingConfig)
   }
 
   Component.onCompleted: syncRestartResume()
