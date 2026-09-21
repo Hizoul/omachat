@@ -176,6 +176,10 @@ ShellRoot {
     root.check(settings.alwaysPopout && settings.popoutMode === "tiled","window opening preferences save through the helper")
     root.check(fake.calls.some(function(c){return c.method === "setWindowPreferences" && c.params.alwaysPopout === true && c.params.popoutMode === "tiled"}),"window preference request preserves enabled state and layout")
     root.check(inspect.findChild(settings,"alwaysPopoutSwitch") !== null && inspect.findChild(settings,"defaultPopoutMode") !== null,"Settings exposes auto pop-out and layout controls")
+    var popoutButton=inspect.findChild(panel,"popoutButton")
+    panel.alwaysPopout=true
+    root.check(popoutButton !== null && !popoutButton.visible,"manual pop-out header action is hidden when automatic pop-out is enabled")
+    panel.alwaysPopout=false
     inbox.selectConversation("a")
     composer.text="Alice draft"
     caption.text="Alice caption"

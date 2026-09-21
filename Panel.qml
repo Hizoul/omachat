@@ -167,6 +167,12 @@ Panel {
   }
 
   function close() {
+    if (popoutPrepareProcess.running) {
+      popoutPrepareProcess.openRequested = false
+      popoutPrepareProcess.running = false
+      surfaceTransfer = false
+      return
+    }
     if (popoutOpen) {
       closePopout(false)
       return
@@ -175,18 +181,32 @@ Panel {
   }
 
   function toggle() {
-    if (popoutOpen) closePopout(false)
+    if (popoutPrepareProcess.running) root.close()
+    else if (popoutOpen) closePopout(false)
     else if (opened) root.controller.hide()
     else root.open()
   }
 
   function openPopout() {
-    if (popoutOpen) return
+    if (popoutOpen || popoutPrepareProcess.running) return
     surfaceTransfer = true
     root.controller.hide()
     popoutModeError = ""
     appliedPopoutMode = ""
     popoutAddress = ""
+    popoutPrepareProcess.openRequested = true
+    popoutPrepareProcess.command = [
+      "hyprctl", "eval",
+      "if omachat_direct_open_rule == nil then "
+        + "omachat_direct_open_rule = hl.window_rule({ name = \"omachat-direct-open\", "
+        + "match = { initial_title = \"^OmaChat Pop-out$\" }, float = true, "
+        + "size = { " + root.preferredPopoutWidth + ", " + root.preferredPopoutHeight + " } }) end; "
+        + "omachat_direct_open_rule:set_enabled(" + (root.popoutMode === "floating" ? "true" : "false") + ")"
+    ]
+    popoutPrepareProcess.running = true
+  }
+
+  function showPreparedPopout() {
     popoutWindow.visible = true
     requestPopoutMode(popoutMode)
     Qt.callLater(function() {
@@ -357,6 +377,19 @@ Panel {
   }
 
   Process {
+    id: popoutPrepareProcess
+    objectName: "popoutPrepareProcess"
+    property bool openRequested: false
+    onExited: function(code) {
+      if (!openRequested) return
+      openRequested = false
+      // Mapping still proceeds if Hyprland rejects the preparatory rule; the
+      // address-targeted correction below remains the compatibility fallback.
+      root.showPreparedPopout()
+    }
+  }
+
+  Process {
     id: restartResumeProcess
     objectName: "restartResumeProcess"
     property string operation: ""
@@ -385,12 +418,14 @@ Panel {
       if (code === 0) {
         try {
           var clients = JSON.parse(String(popoutResolveStdout.text || "[]"))
+          var matchedClient = null
           for (var i = 0; i < clients.length; i++) {
             var client = clients[i]
             if (client && client.mapped !== false
                 && String(client.title) === popoutWindow.title
                 && String(client.initialTitle) === popoutWindow.title) {
               address = String(client.address || "")
+              matchedClient = client
               break
             }
           }
@@ -400,6 +435,26 @@ Panel {
       }
       if (/^0x[0-9a-f]+$/i.test(address)) {
         root.popoutAddress = address
+        var requestedMode = modeMapTimer.requestedMode
+        var alreadyFloating = matchedClient && matchedClient.floating === true
+        if ((requestedMode === "floating") === alreadyFloating) {
+          if (requestedMode === "floating"
+              && matchedClient.size
+              && (matchedClient.size[0] !== root.preferredPopoutWidth
+                || matchedClient.size[1] !== root.preferredPopoutHeight)) {
+            popoutResizeProcess.command = [
+              "hyprctl", "dispatch",
+              "hl.dsp.window.resize({ x = " + root.preferredPopoutWidth
+                + ", y = " + root.preferredPopoutHeight
+                + ", relative = false, window = \"address:" + root.popoutAddress + "\" })"
+            ]
+            popoutResizeProcess.running = true
+          } else {
+            root.appliedPopoutMode = requestedMode
+            root.popoutModeError = ""
+          }
+          return
+        }
         root.dispatchPopoutMode(modeMapTimer.requestedMode, address)
         return
       }
@@ -581,6 +636,7 @@ Panel {
           Button {
             id: popoutBtn
             objectName: "popoutButton"
+            visible: !root.alwaysPopout
             anchors.right: settingsBtn.left
             anchors.rightMargin: Style.space(2)
             anchors.verticalCenter: parent.verticalCenter
@@ -606,7 +662,7 @@ Panel {
             objectName: "unpairButton"
             enabled: !root.unpairing
             visible: root.linkUp
-            anchors.right: popoutBtn.left
+            anchors.right: root.alwaysPopout ? settingsBtn.left : popoutBtn.left
             anchors.rightMargin: Style.space(2)
             anchors.verticalCenter: parent.verticalCenter
             iconText: "󰍃"
@@ -618,7 +674,7 @@ Panel {
 
           Rectangle {
             id: linkChip
-            anchors.right: unpairBtn.visible ? unpairBtn.left : popoutBtn.left
+            anchors.right: unpairBtn.visible ? unpairBtn.left : (root.alwaysPopout ? settingsBtn.left : popoutBtn.left)
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             height: Style.space(20)
