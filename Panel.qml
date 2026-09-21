@@ -26,6 +26,7 @@ Panel {
   property bool alwaysPopout: false
   property bool panelConfigLoaded: false
   property bool openPendingConfig: false
+  property bool configLoadPending: false
   property string appliedPopoutMode: ""
   property string popoutModeError: ""
   property string popoutAddress: ""
@@ -281,21 +282,37 @@ Panel {
   }
 
   function loadConfig(openAfter) {
-    if (!service) {
+    if (!service || configLoadPending) {
       panelConfigLoaded = false
       return
     }
+    var target = service
+    configLoadPending = true
     service.call("config", null, function(ok, res) {
-      if (ok && res) {
-        if (typeof service.applyServiceConfig === "function" && !service.savingServices) service.applyServiceConfig(res)
-        var s = Number(res.uiScale)
-        if (isFinite(s) && s > 0) root.uiScale = s
-        root.alwaysPopout = res.alwaysPopout === true
-        root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
+      if (root.service !== target) return
+      root.configLoadPending = false
+      if (!ok || !res) {
+        root.panelConfigLoaded = false
+        if (root.openPendingConfig) configRetryTimer.restart()
+        return
       }
+      if (typeof target.applyServiceConfig === "function" && !target.savingServices) target.applyServiceConfig(res)
+      var s = Number(res.uiScale)
+      if (isFinite(s) && s > 0) root.uiScale = s
+      root.alwaysPopout = res.alwaysPopout === true
+      root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
       root.panelConfigLoaded = true
       if (openAfter || root.openPendingConfig) root.open()
     }, "gmessages")
+  }
+
+  Timer {
+    id: configRetryTimer
+    interval: 100
+    repeat: false
+    onTriggered: {
+      if (root.openPendingConfig && !root.panelConfigLoaded) root.loadConfig(true)
+    }
   }
 
   onAnySurfaceOpenChanged: {
@@ -313,6 +330,7 @@ Panel {
     unpairing = false
     unpairError = ""
     panelConfigLoaded = false
+    configLoadPending = false
     loadConfig(openPendingConfig)
   }
 
@@ -898,6 +916,8 @@ Panel {
     id: settingsView
     SettingsView {
       service: root.service
+      alwaysPopout: root.alwaysPopout
+      popoutMode: root.popoutMode
       foreground: root.foreground
       fontFamily: root.fontFamily
       uiScale: root.uiScale

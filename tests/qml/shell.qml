@@ -79,7 +79,7 @@ ShellRoot {
    if (!callback) return
    if (method === "messages") callback(true, {messages:[]})
    else if (method === "media") callback(!failMedia, failMedia ? "temporary failure" : {path:root.testImage})
-   else if (method === "config") callback(true,{uiScale:1,alwaysPopout:false,popoutMode:"floating",telegramConfigured:false,telegramApiId:0})
+   else if (method === "config") callback(connected,connected ? {uiScale:1,alwaysPopout:false,popoutMode:"floating",telegramConfigured:false,telegramApiId:0} : "not connected")
    else if (method === "setWindowPreferences") callback(true,{uiScale:1,alwaysPopout:params.alwaysPopout,popoutMode:params.popoutMode,telegramConfigured:false,telegramApiId:0})
    else if (method === "setTelegramCredentials") {
      var isConfigured = params && params.apiId > 0 && !!params.apiHash
@@ -87,6 +87,23 @@ ShellRoot {
    }
    else callback(true, {})
   }
+ }
+ QtObject {
+  id: disconnectedService
+  property bool connected: false
+  property bool savingServices: false
+  property bool servicesConfigLoaded: true
+  property bool serviceSelectionRequired: false
+  property string currentNetwork: "gmessages"
+  property string state: "connecting"
+  property var status: ({state:"connecting"})
+  property var enabledServices: ["gmessages"]
+  function stateFor(net) { return state }
+  function statusFor(net) { return status }
+  function unreadFor(net) { return 0 }
+  function loadConversations(net) {}
+  function loadProfiles() {}
+  function call(method,params,callback,network) { if (callback) callback(false,"not connected") }
  }
  FloatingWindow {
   id: window
@@ -105,6 +122,7 @@ ShellRoot {
  }
  Chat.Panel { id: panel; service: fake }
  Chat.Panel { id: delayedPanel }
+ Chat.Panel { id: disconnectedPanel }
  Chat.SettingsView { id: settings; visible: false; service: fake }
  Chat.ServiceOptions { id: serviceOptions; parent:window.contentItem; width:600; visible:false; service:fake }
  Chat.DependencyChecklist {
@@ -178,6 +196,10 @@ ShellRoot {
     delayedPanel.service=fake
     root.check(delayedPanel.opened && !delayedPanel.openPendingConfig,"pending open resumes after persisted preferences load")
     delayedPanel.close()
+    disconnectedPanel.service=disconnectedService
+    disconnectedPanel.open()
+    root.check(!disconnectedPanel.opened && disconnectedPanel.openPendingConfig && !disconnectedPanel.panelConfigLoaded,"failed startup config read keeps the open request pending")
+    disconnectedPanel.close()
     settings.saveWindowPreferences(true,"tiled")
     root.check(settings.alwaysPopout && settings.popoutMode === "tiled","window opening preferences save through the helper")
     root.check(fake.calls.some(function(c){return c.method === "setWindowPreferences" && c.params.alwaysPopout === true && c.params.popoutMode === "tiled"}),"window preference request preserves enabled state and layout")
