@@ -246,24 +246,56 @@ Flickable {
         font.bold: true
       }
 
-      Text {
-        width: parent.width
-        wrapMode: Text.Wrap
-        text: "Choose whether opening OmaChat from the bar uses the anchored panel or its standalone window."
-        color: root.mutedColor
-        font.family: root.fontFamily
-        font.pixelSize: fs(Style.font.body)
-      }
-
-      Controls.Switch {
+      Item {
         id: alwaysPopoutSwitch
         objectName: "alwaysPopoutSwitch"
-        text: "Always open popped out"
-        checked: root.alwaysPopout
+        width: parent.width
+        implicitHeight: Math.max(popoutLabels.implicitHeight, popoutToggle.implicitHeight)
         enabled: !root.savingWindowPreferences
-        palette.text: root.foreground
-        palette.highlight: root.accentColor
-        onToggled: root.saveWindowPreferences(checked, root.popoutMode)
+        activeFocusOnTab: true
+        opacity: enabled ? 1 : 0.45
+        Keys.onReturnPressed: root.saveWindowPreferences(!root.alwaysPopout, root.popoutMode)
+        Keys.onEnterPressed: root.saveWindowPreferences(!root.alwaysPopout, root.popoutMode)
+        Keys.onSpacePressed: root.saveWindowPreferences(!root.alwaysPopout, root.popoutMode)
+
+        Column {
+          id: popoutLabels
+          anchors.left: parent.left
+          anchors.right: popoutToggle.left
+          anchors.rightMargin: Style.space(12)
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(2)
+
+          Text {
+            width: parent.width
+            text: "Always open popped out"
+            color: root.copyColor
+            font.family: root.fontFamily
+            font.pixelSize: fs(Style.font.body)
+          }
+
+          Text {
+            width: parent.width
+            wrapMode: Text.Wrap
+            text: "Open OmaChat from the bar in its standalone window."
+            color: root.mutedColor
+            font.family: root.fontFamily
+            font.pixelSize: fs(Style.font.caption)
+          }
+        }
+
+        ToggleSwitch {
+          id: popoutToggle
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          checked: root.alwaysPopout
+          busy: root.savingWindowPreferences
+          interactive: alwaysPopoutSwitch.enabled
+          hasCursor: alwaysPopoutSwitch.activeFocus
+          foreground: root.foreground
+          accent: root.accentColor
+          onToggled: root.saveWindowPreferences(!root.alwaysPopout, root.popoutMode)
+        }
       }
 
       Column {
