@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
+import "Keybindings.js" as Keybindings
 
 Panel {
   id: root
@@ -19,6 +20,7 @@ Panel {
 
   property string activeService: "gmessages"
   property bool settingsOpen: false
+  property var shortcutOverrides: ({})
   property bool unpairing: false
   property string unpairError: ""
   property int accountGeneration: 0
@@ -222,7 +224,7 @@ Panel {
     requestPopoutMode(popoutMode)
     Qt.callLater(function() {
       root.surfaceTransfer = false
-      if (root.popoutOpen) keyCatcher.forceActiveFocus()
+      if (root.popoutOpen) root.focusInitialControl()
     })
   }
 
@@ -238,7 +240,7 @@ Panel {
     root.controller.show()
     Qt.callLater(function() {
       root.surfaceTransfer = false
-      if (root.opened) keyCatcher.forceActiveFocus()
+      if (root.opened) root.focusInitialControl()
     })
   }
 
@@ -284,6 +286,77 @@ Panel {
     }
   }
 
+  function activateKeyboardAction(actionId) {
+    if (actionId.indexOf("service.") === 0) {
+      root.setActiveService(actionId.substring("service.".length))
+      return
+    }
+    if (actionId === "help") { actionMenu.open(); return }
+    if (actionId === "settings") { root.settingsOpen = !root.settingsOpen; Qt.callLater(root.focusInitialControl); return }
+    if (actionId === "refresh") { root.refresh(); return }
+    if (root.settingsOpen || !inboxLoader.item) return
+    if (typeof inboxLoader.item.handleKeyboardAction === "function")
+      inboxLoader.item.handleKeyboardAction(actionId)
+  }
+
+  function focusInitialControl() {
+    if (settingsOpen && bodyLoader.item && bodyLoader.item.focusInitialControl) {
+      bodyLoader.item.focusInitialControl()
+      return
+    }
+    if (inboxLoader.visible && inboxLoader.item && inboxLoader.item.focusConversationList) {
+      inboxLoader.item.focusConversationList()
+      return
+    }
+    keyCatcher.forceActiveFocus()
+  }
+
+  function routeKeyboardEvent(event) {
+    var inbox = inboxLoader.visible ? inboxLoader.item : null
+    var editing = !!(inbox && inbox.isKeyboardEditing && inbox.isKeyboardEditing())
+    var chord = {
+      text: event.text,
+      key: event.key,
+      ctrl: (event.modifiers & Qt.ControlModifier) !== 0,
+      alt: (event.modifiers & Qt.AltModifier) !== 0,
+      meta: (event.modifiers & Qt.MetaModifier) !== 0,
+      shift: (event.modifiers & Qt.ShiftModifier) !== 0,
+      isComposing: event.isComposing === true
+    }
+    if (event.key === Qt.Key_Escape) {
+      if (actionMenu.visible) actionMenu.close()
+      else if (root.settingsOpen) {
+        var settingsView = bodyLoader.item
+        if (settingsView && settingsView.isKeyboardEditing && settingsView.isKeyboardEditing())
+          settingsView.leaveKeyboardEditor()
+        else root.settingsOpen = false
+      }
+      else if (editing && inbox && inbox.leaveKeyboardEditor) inbox.leaveKeyboardEditor()
+      else root.close()
+      event.accepted = true
+      return
+    }
+    if (root.settingsOpen && bodyLoader.item && bodyLoader.item.isCapturingShortcut
+        && bodyLoader.item.isCapturingShortcut()) return
+    if (inbox && inbox.hasKeyboardModal && inbox.hasKeyboardModal()) return
+    var result = Keybindings.resolve(chord, editing ? "editing" : "navigation", {
+      overrides: root.shortcutOverrides,
+      enabledServices: root.serviceTabs.map(function(tab) { return tab.value })
+    })
+
+    if (result.id) {
+      root.activateKeyboardAction(result.id)
+      event.accepted = true
+      return
+    }
+    if (!editing && !chord.isComposing && !chord.ctrl && !chord.alt && !chord.meta && !chord.shift
+        && (String(chord.text || "").toLowerCase() === "j" || String(chord.text || "").toLowerCase() === "k")
+        && inbox && inbox.moveConversationCursor) {
+      inbox.moveConversationCursor(String(chord.text).toLowerCase() === "j" ? 1 : -1)
+      event.accepted = true
+    }
+  }
+
   function loadConfig(openAfter) {
     if (!service || configLoadPending) {
       panelConfigLoaded = false
@@ -302,6 +375,8 @@ Panel {
       if (typeof target.applyServiceConfig === "function" && !target.savingServices) target.applyServiceConfig(res)
       var s = Number(res.uiScale)
       if (isFinite(s) && s > 0) root.uiScale = s
+      var validated = Keybindings.validateOverrides(res.keyboardShortcuts || ({}))
+      root.shortcutOverrides = validated.ok ? validated.overrides : ({})
       root.alwaysPopout = res.alwaysPopout === true
       root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
       root.panelConfigLoaded = true
@@ -324,7 +399,10 @@ Panel {
     loadConfig()
     if (needsPair && activeService === "gmessages") service.loadProfiles()
     if (!noServices) service.loadConversations(activeService)
+    Qt.callLater(root.focusInitialControl)
   }
+
+  onSettingsOpenChanged: Qt.callLater(root.focusInitialControl)
 
   onServiceChanged: {
     syncRestartResume()
@@ -578,7 +656,7 @@ Panel {
     bar: root.bar
     open: root.opened
     centerOnBar: true
-    focusTarget: keyCatcher
+    focusTarget: inboxLoader.visible && inboxLoader.item ? inboxLoader.item.keyboardInitialFocus : keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(920))
     contentHeight: panel.cappedContentHeight(Style.space(580))
 
@@ -588,16 +666,19 @@ Panel {
       objectName: "chatKeyCatcher"
       // Let Tab, arrows, Enter and Space reach the focused shared control.
       // The stock catcher consumes them for panels with a custom cursor model.
-      Keys.onPressed: function(event) {
-        var editing = inboxLoader.visible && inboxLoader.item && (inboxLoader.item.composerFocus || inboxLoader.item.linkConfirmOpen || inboxLoader.item.newChatOpen)
-        if (event.key === Qt.Key_Escape) { root.close(); event.accepted = true; return }
-        if (editing || root.settingsOpen) return
-        if (event.text === "1") { root.setActiveService("gmessages"); event.accepted = true }
-        else if (event.text === "2") { root.setActiveService("whatsapp"); event.accepted = true }
-        else if (event.text === "3") { root.setActiveService("telegram"); event.accepted = true }
-        else if (event.text === "4") { root.setActiveService("messenger"); event.accepted = true }
-        else if (event.text === "5") { root.setActiveService("signal"); event.accepted = true }
-        else if (event.text === "r" || event.text === "R") { root.refresh(); event.accepted = true }
+      Keys.onPressed: function(event) { root.routeKeyboardEvent(event) }
+
+      ActionMenu {
+        id: actionMenu
+        enabledServices: root.serviceTabs.map(function(tab) { return tab.value })
+        overrides: root.shortcutOverrides
+        foreground: root.foreground
+        mutedColor: root.mutedInk
+        accentColor: root.accentInk
+        surfaceColor: root.popupBg
+        fontFamily: root.fontFamily
+        fontSize: root.fs(Style.font.body)
+        onTriggered: function(actionId) { root.activateKeyboardAction(actionId) }
       }
 
       Column {
@@ -939,6 +1020,10 @@ Panel {
         root.panelConfigLoaded = true
         root.setPopoutMode(mode)
       }
+      onKeyboardShortcutsSaved: function(shortcuts) {
+        var validated = Keybindings.validateOverrides(shortcuts || ({}))
+        if (validated.ok) root.shortcutOverrides = validated.overrides
+      }
     }
   }
 
@@ -1233,6 +1318,7 @@ Panel {
       foreground: root.foreground
       fontFamily: root.fontFamily
       host: surfaceHost
+      keyboardActionRouter: function(event) { root.routeKeyboardEvent(event) }
       viewActive: inboxLoader.visible
       settings: root.settings
       networkLabel: root.activeService === "whatsapp" ? "WhatsApp" : (root.activeService === "telegram" ? "Telegram" : (root.activeService === "messenger" ? "Messenger" : (root.activeService === "signal" ? "Signal" : "Google Messages")))

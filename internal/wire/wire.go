@@ -98,6 +98,7 @@ const (
 	MethodDiscardCapture         = "discardCapture"
 	MethodSetUiScale             = "setUiScale"
 	MethodSetWindowPreferences   = "setWindowPreferences"
+	MethodSetKeyboardShortcuts   = "setKeyboardShortcuts"
 	MethodConfig                 = "config"
 	MethodUnpair                 = "unpair"
 	MethodMedia                  = "media"
@@ -399,14 +400,15 @@ func (p *SetTelegramCredentialsParams) UnmarshalJSON(data []byte) error {
 // ConfigResult is safe to show in the panel. The Telegram API hash stays in
 // the daemon config file and is never sent to QML.
 type ConfigResult struct {
-	EnabledServices          []string `json:"enabledServices"`
-	ServiceSelectionRequired bool     `json:"serviceSelectionRequired"`
-	RestartRequired          bool     `json:"restartRequired"`
-	UiScale                  float64  `json:"uiScale"`
-	AlwaysPopout             bool     `json:"alwaysPopout"`
-	PopoutMode               string   `json:"popoutMode"`
-	TelegramConfigured       bool     `json:"telegramConfigured"`
-	TelegramAPIID            int      `json:"telegramApiId,omitempty"`
+	EnabledServices          []string          `json:"enabledServices"`
+	ServiceSelectionRequired bool              `json:"serviceSelectionRequired"`
+	RestartRequired          bool              `json:"restartRequired"`
+	UiScale                  float64           `json:"uiScale"`
+	AlwaysPopout             bool              `json:"alwaysPopout"`
+	PopoutMode               string            `json:"popoutMode"`
+	KeyboardShortcuts        map[string]string `json:"keyboardShortcuts"`
+	TelegramConfigured       bool              `json:"telegramConfigured"`
+	TelegramAPIID            int               `json:"telegramApiId,omitempty"`
 }
 
 type SetEnabledServicesParams struct {
@@ -420,6 +422,10 @@ type SetUiScaleParams struct {
 type SetWindowPreferencesParams struct {
 	AlwaysPopout bool   `json:"alwaysPopout"`
 	PopoutMode   string `json:"popoutMode"`
+}
+
+type SetKeyboardShortcutsParams struct {
+	Shortcuts map[string]string `json:"shortcuts"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

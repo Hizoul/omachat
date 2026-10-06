@@ -10,12 +10,14 @@ Item {
   id: root
 
   property var service: null
+  readonly property var keyboardInitialFocus: convList
   property color foreground: Model.readableInk(Color.popups.background, Color.popups.text, 7)
   property string fontFamily: Style.font.family
   property real uiScale: 1
   function fs(n) { return Math.max(12, Math.round(Number(n) * uiScale)) }
   property var host: null
   property var settings: null
+  property var keyboardActionRouter: null
   property string network: "gmessages"
   readonly property bool isWhatsApp: network === "whatsapp"
   readonly property bool isTelegram: network === "telegram"
@@ -225,6 +227,94 @@ Item {
   function setting(key, fallback) {
     if (settings && settings[key] !== undefined && String(settings[key]) !== "") return settings[key]
     return fallback
+  }
+
+  function isKeyboardEditing() {
+    return composerFocus || linkConfirmOpen || newChatOpen || emojiPickerOpen
+  }
+
+  function hasKeyboardModal() { return linkConfirmOpen || newChatOpen || emojiPickerOpen }
+
+  function focusConversationList() {
+    if (!convList || convList.count < 1) return
+    var selectedIndex = -1
+    for (var i = 0; i < visibleConversations.length; i++) {
+      if (visibleConversations[i].id === selectedConvID) { selectedIndex = i; break }
+    }
+    convList.currentIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, convList.currentIndex)
+    convList.forceActiveFocus()
+  }
+
+  function moveConversationCursor(delta) {
+    if (!convList || convList.count < 1) return
+    var current = convList.currentIndex < 0 ? 0 : convList.currentIndex
+    convList.currentIndex = Math.max(0, Math.min(convList.count - 1, current + delta))
+    convList.forceActiveFocus()
+  }
+
+  function openFocusedConversation() {
+    var conversation = visibleConversations[convList.currentIndex]
+    if (!conversation) return
+    selectConversation(conversation.id)
+    if (composer.enabled) composer.forceActiveFocus()
+    else if (messageList.count > 0) messageList.forceActiveFocus()
+    else convList.forceActiveFocus()
+  }
+
+  function leaveKeyboardEditor() {
+    if (emojiPickerOpen) {
+      emojiPickerOpen = false
+      emojiPickerForReact = false
+      if (composer.enabled) composer.forceActiveFocus()
+      return
+    }
+    if (linkConfirmOpen) {
+      cancelOpenUrl()
+      if (composer.enabled) composer.forceActiveFocus()
+      return
+    }
+    if (newChatOpen) {
+      newChatOpen = false
+      focusConversationList()
+      return
+    }
+    if (composerFocus) focusConversationList()
+  }
+
+  function handleKeyboardAction(actionId) {
+    if (actionId === "search") {
+      searchField.forceActiveFocus()
+      searchField.selectAll()
+    } else if (actionId === "compose") {
+      if (composer.enabled) composer.forceActiveFocus()
+    } else if (actionId === "history") {
+      messageList.forceActiveFocus()
+      if (messageList.count > 0) messageList.currentIndex = messageList.count - 1
+    } else if (actionId === "nextUnread") {
+      if (conversations.length === 0) return
+      var start = -1
+      for (var i = 0; i < conversations.length; i++) {
+        if (conversations[i].id === selectedConvID) { start = i; break }
+      }
+      for (var step = 1; step <= conversations.length; step++) {
+        var index = (start + step + conversations.length) % conversations.length
+        if (conversations[index].unread) {
+          convList.currentIndex = index
+          selectConversation(conversations[index].id)
+          focusConversationList()
+          return
+        }
+      }
+    } else if (actionId === "newConversation") {
+      openNewChat()
+    } else if (actionId === "emojiPicker") {
+      if (composer.enabled) {
+        emojiPickerForReact = false
+        emojiPickerOpen = true
+      }
+    } else if (actionId === "attach") {
+      if (composer.enabled && !sendingMedia) attachFromDisk()
+    }
   }
 
   function openNewChat() {
@@ -488,6 +578,7 @@ Item {
   }
 
   onEmojiPickerOpenChanged: if (emojiPickerOpen) Qt.callLater(function() { emojiGrid.forceActiveFocus() })
+
 
   function storeLocalSends(net, convID, rows) {
     var next = Object.assign({}, root._pendingSends)
@@ -1115,12 +1206,8 @@ Item {
       keyNavigationEnabled: true
       Accessible.role: Accessible.List
       Accessible.name: "Conversations"
-      Keys.onReturnPressed: {
-        if (currentItem && currentItem.modelData) root.selectConversation(currentItem.modelData.id)
-      }
-      Keys.onEnterPressed: {
-        if (currentItem && currentItem.modelData) root.selectConversation(currentItem.modelData.id)
-      }
+      Keys.onReturnPressed: root.openFocusedConversation()
+      Keys.onEnterPressed: root.openFocusedConversation()
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: unreadChip.visible ? unreadChip.bottom : searchField.bottom
@@ -2026,6 +2113,11 @@ Item {
       TextField {
         id: composer
         objectName: "composer"
+        Keys.priority: Keys.BeforeItem
+        Keys.onPressed: function(event) {
+          if ((event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) !== 0
+              && root.keyboardActionRouter) root.keyboardActionRouter(event)
+        }
         placeholderTextColor: root.dim
         font.pixelSize: fs(Style.font.body)
         anchors.left: emojiButton.right
@@ -2141,30 +2233,27 @@ Item {
     }
   }
 
-  Rectangle {
+  Popup {
     id: newChatOverlay
     objectName: "newChatOverlay"
-    anchors.fill: parent
+    anchors.centerIn: Overlay.overlay
+    width: Math.min(root.width - Style.space(32), Style.space(480))
+    height: Math.min(root.height - Style.space(32), Style.space(520))
     visible: root.newChatOpen
+    modal: true
+    focus: true
+    padding: Style.space(16)
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     z: 100
-    color: Qt.rgba(0, 0, 0, 0.55)
-
-    MouseArea { anchors.fill: parent; onClicked: root.newChatOpen = false }
-
-    Rectangle {
-      anchors.centerIn: parent
-      width: Math.min(parent.width - Style.space(32), Style.space(480))
-      height: Math.min(parent.height - Style.space(32), Style.space(520))
+    onOpened: Qt.callLater(function() { newChatSearch.forceActiveFocus() })
+    onClosed: { root.newChatOpen = false; root.focusConversationList() }
+    background: Rectangle {
       radius: Style.space(10)
       color: root.panelBg
       border.width: 1
       border.color: Color.popups.border
-
-      MouseArea { anchors.fill: parent }
-
-      Column {
-        anchors.fill: parent
-        anchors.margins: Style.space(16)
+    }
+    contentItem: Column {
         spacing: Style.space(10)
 
         Text {
@@ -2177,8 +2266,8 @@ Item {
 
         Row {
           spacing: Style.space(8)
-          Button { text: "Direct"; enabled: root.newChatGroup; onClicked: { root.newChatGroup = false; root.newChatSelected = ({}) } }
-          Button { text: "Group"; enabled: !root.newChatGroup; onClicked: { root.newChatGroup = true; root.newChatSelected = ({}) } }
+          Button { focusable: true; text: "Direct"; enabled: root.newChatGroup; onClicked: { root.newChatGroup = false; root.newChatSelected = ({}) } }
+          Button { focusable: true; text: "Group"; enabled: !root.newChatGroup; onClicked: { root.newChatGroup = true; root.newChatSelected = ({}) } }
         }
 
         TextField {
@@ -2198,11 +2287,28 @@ Item {
           placeholderText: "Search contacts"
           foreground: root.foreground
           font.pixelSize: fs(Style.font.body)
+          Keys.onDownPressed: {
+            if (newChatTargetList.count > 0) {
+              newChatTargetList.currentIndex = Math.max(0, newChatTargetList.currentIndex)
+              newChatTargetList.forceActiveFocus()
+            }
+          }
         }
 
         ListView {
           id: newChatTargetList
           objectName: "newChatTargetList"
+          activeFocusOnTab: true
+          keyNavigationEnabled: true
+          Accessible.role: Accessible.List
+          Accessible.name: "Conversation contacts"
+          function toggleCurrent() {
+            var target = root.visibleNewChatTargets[currentIndex]
+            if (target) root.toggleNewChatTarget(String(target.id))
+          }
+          Keys.onSpacePressed: toggleCurrent()
+          Keys.onReturnPressed: { toggleCurrent(); if (!root.newChatGroup) root.createNewChat() }
+          Keys.onEnterPressed: { toggleCurrent(); if (!root.newChatGroup) root.createNewChat() }
           width: parent.width
           height: parent.height - y - newChatActions.height - Style.space(34)
           clip: true
@@ -2210,11 +2316,16 @@ Item {
           model: root.visibleNewChatTargets
 
           delegate: Rectangle {
+            required property int index
             required property var modelData
             width: newChatTargetList.width
             height: Style.space(48)
             radius: Style.space(5)
             color: root.newChatSelected[String(modelData.id)] ? root.selectedFill : "transparent"
+            border.width: newChatTargetList.activeFocus && newChatTargetList.currentIndex === index ? 2 : 0
+            border.color: Color.accent
+            Accessible.role: Accessible.ListItem
+            Accessible.name: modelData.name
             Text {
               anchors.left: parent.left
               anchors.leftMargin: Style.space(10)
@@ -2253,8 +2364,9 @@ Item {
           id: newChatActions
           anchors.right: parent.right
           spacing: Style.space(8)
-          Button { text: "Cancel"; onClicked: root.newChatOpen = false }
+          Button { focusable: true; text: "Cancel"; onClicked: root.newChatOpen = false }
           Button {
+            focusable: true
             objectName: "createConversationButton"
             text: root.newChatGroup ? "Create group" : "Start chat"
             enabled: !root.newChatLoading && root.newChatSelectionCount > 0
@@ -2262,7 +2374,6 @@ Item {
           }
         }
       }
-    }
   }
 
   onLinkConfirmOpenChanged: if (linkConfirmOpen) linkDialog.forceActiveFocus()
