@@ -369,13 +369,18 @@ Item {
   }
 
   function markThreadRead() {
-    if (!panelOpen || !service || selectedConvID === "" || messages.length === 0) return
+    if (!panelOpen || !service || selectedConvID === "" || !selectedConv || selectedConv.unread !== true) return
     var last = null
     for (var i = messages.length - 1; i >= 0; i--) {
       if (messages[i].id && !messages[i].provisional) { last = messages[i]; break }
     }
-    if (!last) return
-    service.call("markRead", { conversationID: selectedConvID, messageID: last.id }, null, root.network)
+    // Telegram retains a dialog watermark even when its top item is a service
+    // event that OmaChat does not render. Messenger likewise supports
+    // conversation-level acknowledgement without a rendered message ID.
+    if (!last && !root.isTelegram && !root.isMessenger) return
+    service.call("markRead", { conversationID: selectedConvID, messageID: last ? last.id : "" }, function(ok, error) {
+      if (!ok) root.threadError = String(error)
+    }, root.network)
   }
 
   function sendMessage(rawText) {
@@ -1000,19 +1005,24 @@ Item {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: {
-          for (var i = 0; i < root.conversations.length; i++) {
-            if (root.conversations[i].unread === true) {
-              root.selectConversation(root.conversations[i].id)
-              convList.positionViewAtIndex(i, ListView.Contain)
-              return
+          searchField.text = ""
+          Qt.callLater(function() {
+            for (var i = 0; i < root.visibleConversations.length; i++) {
+              if (root.visibleConversations[i].unread === true) {
+                if (root.visibleConversations[i].id === root.selectedConvID) root.markThreadRead()
+                else root.selectConversation(root.visibleConversations[i].id)
+                convList.currentIndex = i
+                convList.positionViewAtIndex(i, ListView.Contain)
+                return
+              }
             }
-          }
+          })
         }
       }
 
       Text {
         anchors.centerIn: parent
-        text: root.unreadConversations === 1 ? "1 unread" : root.unreadConversations + " unread"
+        text: root.unreadConversations === 1 ? "Next unread (1)" : "Next unread (" + root.unreadConversations + ")"
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: fs(Style.font.caption)

@@ -52,7 +52,7 @@ ShellRoot {
    {id:"wa-1@s.whatsapp.net",name:"Demo WA",preview:"WA test",timestamp:3000000}
   ]
   property var conversationsFB: [
-   {id:"fb-1",name:"Demo Messenger",preview:"Messenger test",timestamp:4000000}
+   {id:"fb-1",name:"Demo Messenger",preview:"",timestamp:4000000,unread:true}
   ]
   property var calls: []
   property var delayed: []
@@ -171,6 +171,13 @@ ShellRoot {
     var caption = inspect.findChild(inbox,"attachCaption")
     var search = inspect.findChild(inbox,"searchField")
     root.check(composer && caption && search,"real inbox editors load")
+    inbox.network = "messenger"
+    inbox.selectConversation("fb-1")
+    root.check(fake.calls.some(function(c) {
+      return c.method === "markRead" && c.network === "messenger"
+        && c.params.conversationID === "fb-1" && c.params.messageID === ""
+    }), "empty unread Messenger thread is acknowledged without a rendered message")
+    inbox.network = "gmessages"
     inbox.selectConversation("a")
     composer.text="Alice draft"
     caption.text="Alice caption"

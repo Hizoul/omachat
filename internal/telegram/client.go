@@ -77,19 +77,20 @@ type GotdClient struct {
 	sessionPath  string
 	log          zerolog.Logger
 
-	mu         sync.RWMutex
-	peers      map[int64]tg.InputPeerClass
-	client     *telegram.Client
-	dispatcher tg.UpdateDispatcher
-	cancel     context.CancelFunc
-	running    bool
-	connected  bool
-	stopped    bool
-	onMessage  func(Message)
-	onReaction func(int64, int64, []wire.Reaction)
-	mediaRefs  map[string]tg.InputFileLocationClass
-	mediaExts  map[string]string
-	downloadWG sync.WaitGroup
+	mu          sync.RWMutex
+	peers       map[int64]tg.InputPeerClass
+	topMessages map[int64]int
+	client      *telegram.Client
+	dispatcher  tg.UpdateDispatcher
+	cancel      context.CancelFunc
+	running     bool
+	connected   bool
+	stopped     bool
+	onMessage   func(Message)
+	onReaction  func(int64, int64, []wire.Reaction)
+	mediaRefs   map[string]tg.InputFileLocationClass
+	mediaExts   map[string]string
+	downloadWG  sync.WaitGroup
 }
 
 // SetMessageHandler registers the callback used for live incoming updates.
@@ -176,6 +177,7 @@ func NewGotdClient(appID int, appHash string, sessionPath string, log zerolog.Lo
 		log:          log.With().Str("component", "gotd").Logger(),
 		client:       client,
 		peers:        make(map[int64]tg.InputPeerClass),
+		topMessages:  make(map[int64]int),
 		mediaRefs:    make(map[string]tg.InputFileLocationClass),
 		mediaExts:    make(map[string]string),
 		dispatcher:   dispatcher,
@@ -423,6 +425,7 @@ func (g *GotdClient) Dialogs(ctx context.Context, limit int) ([]Dialog, error) {
 	}
 	out := make([]Dialog, 0, len(raws))
 	previews := make(map[int64]Message, len(lastMessages))
+	topMessages := make(map[int64]int, len(raws))
 	for _, raw := range lastMessages {
 		m, ok := raw.(*tg.Message)
 		if !ok || m.PeerID == nil {
@@ -445,11 +448,17 @@ func (g *GotdClient) Dialogs(ctx context.Context, limit int) ([]Dialog, error) {
 			continue
 		}
 		preview := previews[id]
+		if d.TopMessage > 0 {
+			topMessages[id] = d.TopMessage
+		}
 		out = append(out, Dialog{ID: id, Name: names[fmt.Sprintf("tg:%d", id)], Preview: preview.Text, Unread: d.UnreadCount > 0, Timestamp: preview.Timestamp, IsGroup: isGroupPeer(d.Peer)})
 	}
 	g.mu.Lock()
 	for id, peer := range peers {
 		g.peers[id] = peer
+	}
+	for id, messageID := range topMessages {
+		g.topMessages[id] = messageID
 	}
 	g.mu.Unlock()
 	return out, nil
@@ -511,19 +520,29 @@ func (g *GotdClient) historyPage(res tg.MessagesMessagesClass, conversationID in
 	return out
 }
 
-// MarkRead acknowledges Telegram history up to messageID. A zero message ID
-// asks Telegram to mark the whole known history for the peer as read.
+func (g *GotdClient) readWatermark(conversationID, messageID int64) int64 {
+	if messageID != 0 {
+		return messageID
+	}
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return int64(g.topMessages[conversationID])
+}
+
+// MarkRead acknowledges Telegram history up to messageID. When the rendered
+// history has no ordinary messages, the dialog's top-message watermark is used.
 func (g *GotdClient) MarkRead(ctx context.Context, conversationID int64, messageID int64) error {
 	g.mu.RLock()
 	peer := g.peers[conversationID]
 	g.mu.RUnlock()
+	messageID = g.readWatermark(conversationID, messageID)
 	if peer == nil {
 		return fmt.Errorf("telegram peer %d is not available", conversationID)
 	}
-	maxID := 0
-	if messageID > 0 {
-		maxID = int(messageID)
+	if messageID <= 0 {
+		return fmt.Errorf("telegram conversation %d has no read watermark", conversationID)
 	}
+	maxID := int(messageID)
 	if channelPeer, ok := peer.(*tg.InputPeerChannel); ok {
 		_, err := g.client.API().ChannelsReadHistory(ctx, &tg.ChannelsReadHistoryRequest{
 			Channel: &tg.InputChannel{ChannelID: channelPeer.ChannelID, AccessHash: channelPeer.AccessHash},
