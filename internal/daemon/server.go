@@ -723,6 +723,16 @@ func (d *Daemon) dispatchGMessages(ctx context.Context, req wire.Request) wire.R
 		}
 		return ok(d.PluginConfig())
 
+	case wire.MethodSetWindowPreferences:
+		p, err := decodeParams[wire.SetWindowPreferencesParams](req.Params)
+		if err != nil {
+			return fail(err)
+		}
+		if err := d.SetWindowPreferences(p.AlwaysPopout, p.PopoutMode); err != nil {
+			return fail(err)
+		}
+		return ok(d.PluginConfig())
+
 	case wire.MethodConfig:
 		return ok(d.PluginConfig())
 

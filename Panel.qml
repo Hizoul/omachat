@@ -23,6 +23,10 @@ Panel {
   property string unpairError: ""
   property int accountGeneration: 0
   property string popoutMode: "floating"
+  property bool alwaysPopout: false
+  property bool panelConfigLoaded: false
+  property bool openPendingConfig: false
+  property bool configLoadPending: false
   property string appliedPopoutMode: ""
   property string popoutModeError: ""
   property string popoutAddress: ""
@@ -159,10 +163,27 @@ Panel {
 
   function open() {
     if (popoutOpen) return
-    root.controller.show()
+    if (!panelConfigLoaded) {
+      openPendingConfig = true
+      if (service) loadConfig(true)
+      return
+    }
+    openPendingConfig = false
+    if (alwaysPopout) openPopout()
+    else root.controller.show()
   }
 
   function close() {
+    if (openPendingConfig) {
+      openPendingConfig = false
+      return
+    }
+    if (popoutPrepareProcess.running) {
+      popoutPrepareProcess.openRequested = false
+      popoutPrepareProcess.running = false
+      surfaceTransfer = false
+      return
+    }
     if (popoutOpen) {
       closePopout(false)
       return
@@ -171,18 +192,32 @@ Panel {
   }
 
   function toggle() {
-    if (popoutOpen) closePopout(false)
+    if (popoutPrepareProcess.running) root.close()
+    else if (popoutOpen) closePopout(false)
     else if (opened) root.controller.hide()
-    else root.controller.show()
+    else root.open()
   }
 
   function openPopout() {
-    if (popoutOpen) return
+    if (popoutOpen || popoutPrepareProcess.running) return
     surfaceTransfer = true
     root.controller.hide()
     popoutModeError = ""
     appliedPopoutMode = ""
     popoutAddress = ""
+    popoutPrepareProcess.openRequested = true
+    popoutPrepareProcess.command = [
+      "hyprctl", "eval",
+      "if omachat_direct_open_rule == nil then "
+        + "omachat_direct_open_rule = hl.window_rule({ name = \"omachat-direct-open\", "
+        + "match = { initial_title = \"^OmaChat Pop-out$\" }, float = true, "
+        + "size = { " + root.preferredPopoutWidth + ", " + root.preferredPopoutHeight + " } }) end; "
+        + "omachat_direct_open_rule:set_enabled(" + (root.popoutMode === "floating" ? "true" : "false") + ")"
+    ]
+    popoutPrepareProcess.running = true
+  }
+
+  function showPreparedPopout() {
     popoutWindow.visible = true
     requestPopoutMode(popoutMode)
     Qt.callLater(function() {
@@ -249,14 +284,38 @@ Panel {
     }
   }
 
-  function loadConfig() {
-    if (!service) return
+  function loadConfig(openAfter) {
+    if (!service || configLoadPending) {
+      panelConfigLoaded = false
+      return
+    }
+    var target = service
+    configLoadPending = true
     service.call("config", null, function(ok, res) {
-      if (!ok || !res) return
-      if (typeof service.applyServiceConfig === "function" && !service.savingServices) service.applyServiceConfig(res)
+      if (root.service !== target) return
+      root.configLoadPending = false
+      if (!ok || !res) {
+        root.panelConfigLoaded = false
+        if (root.openPendingConfig) configRetryTimer.restart()
+        return
+      }
+      if (typeof target.applyServiceConfig === "function" && !target.savingServices) target.applyServiceConfig(res)
       var s = Number(res.uiScale)
       if (isFinite(s) && s > 0) root.uiScale = s
+      root.alwaysPopout = res.alwaysPopout === true
+      root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
+      root.panelConfigLoaded = true
+      if (openAfter || root.openPendingConfig) root.open()
     }, "gmessages")
+  }
+
+  Timer {
+    id: configRetryTimer
+    interval: 100
+    repeat: false
+    onTriggered: {
+      if (root.openPendingConfig && !root.panelConfigLoaded) root.loadConfig(true)
+    }
   }
 
   onAnySurfaceOpenChanged: {
@@ -273,7 +332,9 @@ Panel {
     accountGeneration++
     unpairing = false
     unpairError = ""
-    loadConfig()
+    panelConfigLoaded = false
+    configLoadPending = false
+    loadConfig(openPendingConfig)
   }
 
   Component.onCompleted: syncRestartResume()
@@ -343,6 +404,19 @@ Panel {
   }
 
   Process {
+    id: popoutPrepareProcess
+    objectName: "popoutPrepareProcess"
+    property bool openRequested: false
+    onExited: function(code) {
+      if (!openRequested) return
+      openRequested = false
+      // Mapping still proceeds if Hyprland rejects the preparatory rule; the
+      // address-targeted correction below remains the compatibility fallback.
+      root.showPreparedPopout()
+    }
+  }
+
+  Process {
     id: restartResumeProcess
     objectName: "restartResumeProcess"
     property string operation: ""
@@ -371,12 +445,14 @@ Panel {
       if (code === 0) {
         try {
           var clients = JSON.parse(String(popoutResolveStdout.text || "[]"))
+          var matchedClient = null
           for (var i = 0; i < clients.length; i++) {
             var client = clients[i]
             if (client && client.mapped !== false
                 && String(client.title) === popoutWindow.title
                 && String(client.initialTitle) === popoutWindow.title) {
               address = String(client.address || "")
+              matchedClient = client
               break
             }
           }
@@ -386,6 +462,26 @@ Panel {
       }
       if (/^0x[0-9a-f]+$/i.test(address)) {
         root.popoutAddress = address
+        var requestedMode = modeMapTimer.requestedMode
+        var alreadyFloating = matchedClient && matchedClient.floating === true
+        if ((requestedMode === "floating") === alreadyFloating) {
+          if (requestedMode === "floating"
+              && matchedClient.size
+              && (matchedClient.size[0] !== root.preferredPopoutWidth
+                || matchedClient.size[1] !== root.preferredPopoutHeight)) {
+            popoutResizeProcess.command = [
+              "hyprctl", "dispatch",
+              "hl.dsp.window.resize({ x = " + root.preferredPopoutWidth
+                + ", y = " + root.preferredPopoutHeight
+                + ", relative = false, window = \"address:" + root.popoutAddress + "\" })"
+            ]
+            popoutResizeProcess.running = true
+          } else {
+            root.appliedPopoutMode = requestedMode
+            root.popoutModeError = ""
+          }
+          return
+        }
         root.dispatchPopoutMode(modeMapTimer.requestedMode, address)
         return
       }
@@ -494,8 +590,8 @@ Panel {
       // The stock catcher consumes them for panels with a custom cursor model.
       Keys.onPressed: function(event) {
         var editing = inboxLoader.visible && inboxLoader.item && (inboxLoader.item.composerFocus || inboxLoader.item.linkConfirmOpen || inboxLoader.item.newChatOpen)
-        if (editing || root.settingsOpen) return
         if (event.key === Qt.Key_Escape) { root.close(); event.accepted = true; return }
+        if (editing || root.settingsOpen) return
         if (event.text === "1") { root.setActiveService("gmessages"); event.accepted = true }
         else if (event.text === "2") { root.setActiveService("whatsapp"); event.accepted = true }
         else if (event.text === "3") { root.setActiveService("telegram"); event.accepted = true }
@@ -570,6 +666,7 @@ Panel {
           Button {
             id: popoutBtn
             objectName: "popoutButton"
+            visible: !root.alwaysPopout
             anchors.right: settingsBtn.left
             anchors.rightMargin: Style.space(2)
             anchors.verticalCenter: parent.verticalCenter
@@ -595,7 +692,7 @@ Panel {
             objectName: "unpairButton"
             enabled: !root.unpairing
             visible: root.linkUp
-            anchors.right: popoutBtn.left
+            anchors.right: root.alwaysPopout ? settingsBtn.left : popoutBtn.left
             anchors.rightMargin: Style.space(2)
             anchors.verticalCenter: parent.verticalCenter
             iconText: "󰍃"
@@ -607,7 +704,7 @@ Panel {
 
           Rectangle {
             id: linkChip
-            anchors.right: unpairBtn.visible ? unpairBtn.left : popoutBtn.left
+            anchors.right: unpairBtn.visible ? unpairBtn.left : (root.alwaysPopout ? settingsBtn.left : popoutBtn.left)
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
             height: Style.space(20)
@@ -831,10 +928,17 @@ Panel {
     id: settingsView
     SettingsView {
       service: root.service
+      alwaysPopout: root.alwaysPopout
+      popoutMode: root.popoutMode
       foreground: root.foreground
       fontFamily: root.fontFamily
       uiScale: root.uiScale
       onScaleSaved: function(s) { root.uiScale = s }
+      onWindowPreferencesSaved: function(always, mode) {
+        root.alwaysPopout = always
+        root.panelConfigLoaded = true
+        root.setPopoutMode(mode)
+      }
     }
   }
 
