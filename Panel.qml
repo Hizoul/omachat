@@ -493,7 +493,7 @@ Panel {
       // Let Tab, arrows, Enter and Space reach the focused shared control.
       // The stock catcher consumes them for panels with a custom cursor model.
       Keys.onPressed: function(event) {
-        var editing = inboxLoader.visible && inboxLoader.item && (inboxLoader.item.composerFocus || inboxLoader.item.linkConfirmOpen)
+        var editing = inboxLoader.visible && inboxLoader.item && (inboxLoader.item.composerFocus || inboxLoader.item.linkConfirmOpen || inboxLoader.item.newChatOpen)
         if (editing || root.settingsOpen) return
         if (event.key === Qt.Key_Escape) { root.close(); event.accepted = true; return }
         if (event.text === "1") { root.setActiveService("gmessages"); event.accepted = true }
