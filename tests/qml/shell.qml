@@ -212,6 +212,13 @@ ShellRoot {
         && c.params.conversationID === "fb-1" && c.params.messageID === ""
     }), "empty unread Messenger thread is acknowledged without a rendered message")
     inbox.network = "gmessages"
+    var messengerConversations = fake.conversationsFB
+    fake.conversationsFB=[{id:"fb-empty-unread",name:"Encrypted Messenger chat",preview:"",timestamp:4,unread:true}]
+    inbox.network="messenger"
+    inbox.selectConversation("fb-empty-unread")
+    root.check(fake.calls.some(function(c){return c.method === "markRead" && c.network === "messenger" && c.params.conversationID === "fb-empty-unread" && c.params.messageID === ""}),"opening an unread Messenger thread without synced history still marks it read")
+    inbox.network="gmessages"
+    fake.conversationsFB = messengerConversations
     inbox.selectConversation("a")
     composer.text="Alice draft"
     caption.text="Alice caption"
