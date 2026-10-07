@@ -174,6 +174,14 @@ to copy it. Middle-click the bar icon to refresh; its badge counts unread
 conversations across active services, and each service tab shows its own unread
 badge while the app is open.
 
+Desktop notifications are enabled by default for new incoming messages while
+OmaChat is running. Open **Settings > Notifications** to turn them off, enable
+sender and message previews, or send a test notification. Previews are off by
+default. Clicking an alert opens its conversation; the conversation you are
+actively reading stays quiet. History refreshes, outgoing messages, reactions,
+and receipt updates do not produce alerts. Do Not Disturb and sounds remain
+controlled by your desktop.
+
 Pick an attachment from the composer. Google Messages sends captions separately
 after the attachment; check the conversation before retrying a caption reported
 as unconfirmed. WhatsApp, Telegram, and Messenger include captions with images;
@@ -217,7 +225,7 @@ files as new downloads complete.
 | `~/.local/share/omachat/telegram.session` and `telegram_store.json` | Telegram credentials and chat cache |
 | `~/.local/share/omachat/messenger_session.json` and `messenger.db` | Messenger session cookies and encrypted-device state |
 | `~/.local/share/omachat/signal-cli/` and `signal_store.json` | Signal linked-device keys and the locally accumulated message cache |
-| `~/.local/share/omachat/config.json` | Service choices, text size, browser selection, Telegram API credentials |
+| `~/.local/share/omachat/config.json` | Service choices, notification preferences, text size, browser selection, Telegram API credentials |
 | `~/.cache/omachat/media/`, `media_whatsapp/`, `media_telegram/`, `media_messenger/`, `media_signal/` | Service-specific media caches |
 | `$XDG_RUNTIME_DIR/omachat/daemon.sock` | Private plugin/helper control socket |
 

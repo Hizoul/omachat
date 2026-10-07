@@ -30,6 +30,8 @@ Item {
   }
 
   property alias updates: updateManager
+  property alias notifications: notificationManager
+  DesktopNotifications { id: notificationManager; service:root; connected:root.connected }
   UpdateManager { id:updateManager; pluginDir:root.pluginDir }
   property string runningSourceID: ""
   property bool helperBuildChecked: false
@@ -118,6 +120,7 @@ Item {
     enabledServices = next
     serviceSelectionRequired = config.serviceSelectionRequired === true
     servicesConfigLoaded = true
+    notificationManager.applyConfig(config)
     servicesError = ""
     if (!isServiceEnabled("gmessages")) { conversations = []; browserProfiles = [] }
     if (!isServiceEnabled("whatsapp")) conversationsWA = []
@@ -609,6 +612,10 @@ Item {
   }
 
   function _handleEvent(frame) {
+    if (frame.event === "notificationOpen") {
+      notificationManager.openConversation(frame.data)
+      return
+    }
     if (frame.event === "config") {
       if (frame.data && frame.data.restartRequired === true && !restartingServices)
         awaitServiceRestart(frame.data.enabledServices,null)
@@ -619,6 +626,7 @@ Item {
     if (frame.event !== "status" && !isServiceEnabled(net)) return
     switch (frame.event) {
     case "status":
+      if (frame.data && frame.data.state === "unpaired") notificationManager.forgetNetwork(net)
       if (net === "whatsapp") {
         root.statusWA = frame.data
         if (root.statusWA && root.statusWA.state === "unpaired") root.conversationsWA = []
@@ -650,12 +658,14 @@ Item {
       }
       break
     case "message":
+      notificationManager.handleMessage(frame.data, net, frame.notify === true)
       root.messageReceived(frame.data, net)
       break
     case "history":
       root.historyUpdated(frame.data, net)
       break
     case "paired":
+      notificationManager.forgetNetwork(net)
       root.paired(net)
       root.loadConversations(net)
       break

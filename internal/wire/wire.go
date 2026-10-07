@@ -62,6 +62,7 @@ type Event struct {
 	Event   string `json:"event"`
 	Network string `json:"network,omitempty"`
 	Data    any    `json:"data,omitempty"`
+	Notify  bool   `json:"notify,omitempty"`
 }
 
 // Event names.
@@ -73,6 +74,7 @@ const (
 	EventEmoji        = "emoji"
 	EventPaired       = "paired"
 	EventHistory      = "history"
+	EventNotificationOpen = "notificationOpen"
 )
 
 // Method names.
@@ -102,6 +104,9 @@ const (
 	MethodSetKeyboardShortcuts     = "setKeyboardShortcuts"
 	MethodSetEmojiSearchPreference = "setEmojiSearchPreference"
 	MethodSetWhatsAppHistoryCache  = "setWhatsAppHistoryCache"
+	MethodSetNotifications         = "setNotifications"
+	MethodNotifyMessage            = "notifyMessage"
+	MethodTestNotification         = "testNotification"
 	MethodConfig                   = "config"
 	MethodUnpair                   = "unpair"
 	MethodMedia                    = "media"
@@ -420,6 +425,8 @@ type ConfigResult struct {
 	KeyboardShortcuts           map[string]string `json:"keyboardShortcuts"`
 	KeepPreviousEmojiSearchText bool              `json:"keepPreviousEmojiSearchText"`
 	WhatsAppHistoryCacheMB      int               `json:"whatsappHistoryCacheMB"`
+	NotificationsEnabled       bool              `json:"notificationsEnabled"`
+	NotificationPreviews       bool              `json:"notificationPreviews"`
 	TelegramConfigured          bool              `json:"telegramConfigured"`
 	TelegramAPIID               int               `json:"telegramApiId,omitempty"`
 }
@@ -447,6 +454,21 @@ type SetEmojiSearchPreferenceParams struct {
 
 type SetWhatsAppHistoryCacheParams struct {
 	SizeMB int `json:"sizeMB"`
+}
+
+type SetNotificationsParams struct {
+	Enabled  *bool `json:"enabled,omitempty"`
+	Previews *bool `json:"previews,omitempty"`
+}
+
+type NotifyMessageParams struct {
+	Message          Message `json:"message"`
+	ConversationName string  `json:"conversationName,omitempty"`
+}
+
+type NotificationTarget struct {
+	Network        string `json:"network"`
+	ConversationID string `json:"conversationID"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix="omachat-qml-") as folder:
     if result.returncode or "OMACHAT_POPOUT_PASS" not in result.stdout or "OMACHAT_POPOUT_FAIL" in result.stdout or "ERROR" in result.stdout:
         raise SystemExit(1)
 
-    for fixture, marker in (("review", "OMACHAT_REVIEW"), ("panel-keyboard", "OMACHAT_PANEL_KEYBOARD"), ("panel-emoji-search", "OMACHAT_PANEL_EMOJI_SEARCH"), ("updates", "OMACHAT_UPDATES"), ("whatsapp-history-settings", "OMACHAT_WHATSAPP_HISTORY_SETTINGS"), ("avatar", "OMACHAT_AVATAR")):
+    for fixture, marker in (("review", "OMACHAT_REVIEW"), ("panel-keyboard", "OMACHAT_PANEL_KEYBOARD"), ("panel-emoji-search", "OMACHAT_PANEL_EMOJI_SEARCH"), ("notifications", "OMACHAT_NOTIFICATIONS"), ("updates", "OMACHAT_UPDATES"), ("whatsapp-history-settings", "OMACHAT_WHATSAPP_HISTORY_SETTINGS"), ("avatar", "OMACHAT_AVATAR")):
         (config / "shell.qml").write_text((repo / ("tests/qml/" + fixture + ".qml")).read_text())
         result = subprocess.run(["qs", "-p", str(config)], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
         print(result.stdout)
@@ -78,7 +78,7 @@ with tempfile.TemporaryDirectory(prefix="omachat-qml-") as folder:
     build = config / "Build"
     build.mkdir()
     (build / "Service.qml").write_text((repo / "Service.qml").read_text())
-    for source in ("go.mod", "go.sum", "vendor", "cmd", "internal", "manifest.json", "UpdateManager.qml"):
+    for source in ("go.mod", "go.sum", "vendor", "cmd", "internal", "manifest.json", "UpdateManager.qml", "DesktopNotifications.qml", "Notifications.js"):
         (build / source).symlink_to(repo / source)
     (build / "scripts").mkdir()
     (build / "scripts/updates.py").write_text((repo / "scripts/updates.py").read_text())

@@ -58,6 +58,7 @@ type Daemon struct {
 	media   *mediaCache
 	avatars *avatarStore
 	config  *store.ConfigStore
+	notifications *desktopNotifications
 
 	// Reactions carry the participant IDs that left them, which is the only
 	// way to tell whether one of them is the user's own — and that decides
@@ -118,6 +119,7 @@ func New(log zerolog.Logger, paths *store.Paths) *Daemon {
 		// happened.
 		status: wire.Status{Network: wire.NetworkGMessages, State: wire.StateUnpaired, PhoneOK: true},
 	}
+	d.notifications = newDesktopNotifications(d.PublishEvent)
 	d.wa = whatsapp.New(log, paths, d.PublishEvent)
 	_ = d.wa.SetHistoryCacheMB(d.config.Get().WhatsAppHistoryCacheMB)
 	d.tg = telegram.New(log, paths, d.PublishEvent, d.config)
@@ -336,6 +338,7 @@ func (d *Daemon) Stop() {
 	if d.sg != nil {
 		d.sg.Stop()
 	}
+	d.notifications.stop()
 }
 
 func (d *Daemon) saveSession() {
@@ -544,7 +547,8 @@ func (d *Daemon) handleMessage(msg *gmproto.Message) {
 	d.recordReactions(msg)
 	m := convertMessage(msg, d.senderName(msg))
 	d.markMyReactions(m.ConversationID, &m)
-	d.publish(wire.EventMessage, m)
+	d.PublishEvent(wire.Event{Event: wire.EventMessage, Network: wire.NetworkGMessages, Data: m,
+		Notify: m.Status == "INCOMING_COMPLETE" || m.Status == "INCOMING_DELIVERED"})
 	// The conversation list preview and unread dot both derive from
 	// conversation events, but those can lag behind the message itself.
 	d.touchConversation(m)

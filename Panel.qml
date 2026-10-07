@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
@@ -19,6 +20,9 @@ Panel {
   readonly property var barIdentity: hostWidget || root
 
   property string activeService: "gmessages"
+  property var notificationManager: null
+  property string pendingConversationID: ""
+  property string pendingConversationNetwork: ""
   property bool settingsOpen: false
   property var shortcutOverrides: ({})
   property bool unpairing: false
@@ -79,10 +83,10 @@ Panel {
     function onStatusTGChanged() { root.unreadRevision++ }
     function onStatusFBChanged() { root.unreadRevision++ }
     function onStatusSGChanged() { root.unreadRevision++ }
-    function onConversationsChanged() { root.unreadRevision++ }
-    function onConversationsWAChanged() { root.unreadRevision++ }
-    function onConversationsTGChanged() { root.unreadRevision++ }
-    function onConversationsFBChanged() { root.unreadRevision++ }
+    function onConversationsChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onConversationsWAChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onConversationsTGChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onConversationsFBChanged() { root.unreadRevision++; root.selectPendingConversation() }
     function onConversationsSGChanged() { root.unreadRevision++ }
   }
   readonly property bool noServices: serviceTabs.length === 0
@@ -287,6 +291,41 @@ Panel {
     }
   }
 
+  function isReadingConversation(network, id) {
+    return anySurfaceOpen && inboxLoader.visible && inboxLoader.item
+      && inboxLoader.item.network === network && inboxLoader.item.selectedConvID === id
+      && keyCatcher.Window.window && keyCatcher.Window.window.active
+  }
+
+  function showConversation(network, id) {
+    if (!serviceTabs.some(function(tab) { return tab.value === network })) return
+    setActiveService(network)
+    pendingConversationNetwork = network
+    pendingConversationID = id
+    open()
+    if (popoutOpen && popoutContentHost.Window.window) popoutContentHost.Window.window.requestActivate()
+    Qt.callLater(selectPendingConversation)
+  }
+
+  function selectPendingConversation() {
+    if (!pendingConversationID || activeService !== pendingConversationNetwork || !inboxLoader.visible || !inboxLoader.item) return
+    if (!inboxLoader.item.conversations.some(function(conv) { return conv.id === root.pendingConversationID })) return
+    inboxLoader.item.selectConversation(pendingConversationID)
+    if (inboxLoader.item.selectedConvID === pendingConversationID) pendingConversationID = ""
+  }
+
+  function showNotificationSettings() {
+    settingsOpen = true
+    open()
+    Qt.callLater(function() { if (bodyLoader.item) bodyLoader.item.showNotifications() })
+  }
+
+  function registerNotificationView() {
+    if (notificationManager) notificationManager.unregisterView(root)
+    notificationManager = service && service.notifications ? service.notifications : null
+    if (notificationManager) notificationManager.registerView(root)
+  }
+
   function switchService(direction) {
     if (root.serviceTabs.length < 2) return
     var current = root.serviceTabs.findIndex(function(tab) { return tab.value === root.activeService })
@@ -431,6 +470,7 @@ Panel {
   onSettingsOpenChanged: Qt.callLater(root.focusInitialControl)
 
   onServiceChanged: {
+    registerNotificationView()
     syncRestartResume()
     syncActiveService()
     accountGeneration++
@@ -441,7 +481,8 @@ Panel {
     loadConfig(openPendingConfig)
   }
 
-  Component.onCompleted: syncRestartResume()
+  Component.onCompleted: { syncRestartResume(); registerNotificationView() }
+  Component.onDestruction: if (notificationManager) notificationManager.unregisterView(root)
 
   onConnStateChanged: {
     if (connState === "pairing" || connState === "gaiaPairing" || connState === "connecting") {
@@ -976,6 +1017,8 @@ Panel {
       // Unpairing or losing the helper destroys this view and its account data.
       Loader {
         id: inboxLoader
+        onLoaded: Qt.callLater(root.selectPendingConversation)
+        onVisibleChanged: if (visible) Qt.callLater(root.selectPendingConversation)
         objectName: "inboxLoader"
         anchors.left: parent.left
         anchors.right: parent.right
@@ -1350,6 +1393,7 @@ Panel {
       viewActive: inboxLoader.visible
       settings: root.settings
       keepPreviousEmojiSearchText: root.keepPreviousEmojiSearchText
+      onSendingMediaChanged: if (!sendingMedia) Qt.callLater(root.selectPendingConversation)
       networkLabel: root.activeService === "whatsapp" ? "WhatsApp" : (root.activeService === "telegram" ? "Telegram" : (root.activeService === "messenger" ? "Messenger" : (root.activeService === "signal" ? "Signal" : "Google Messages")))
       uiScale: root.uiScale
     }

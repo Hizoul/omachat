@@ -79,6 +79,7 @@ Flickable {
   Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
 
   function showUpdates() { jumpTo(updatesSection) }
+  function showNotifications() { jumpTo(notificationsSection) }
 
   function jumpTo(section) {
     contentY = Math.max(0, Math.min(section.y, contentHeight - height))
@@ -238,6 +239,7 @@ Flickable {
         model: [
           {label:"Updates", section:updatesSection},
           {label:"Services", section:serviceChoices},
+          {label:"Notifications", section:notificationsSection},
           {label:"Appearance", section:windowSection},
           {label:"Keyboard", section:keyboardSection},
           {label:"Emoji picker", section:emojiPickerSection},
@@ -278,6 +280,15 @@ Flickable {
       service:root.service
       fontFamily:root.fontFamily
       uiScale:root.uiScale
+    }
+
+    NotificationSettings {
+      id: notificationsSection
+      width: parent.width
+      service: root.service
+      fontFamily: root.fontFamily
+      uiScale: root.uiScale
+      foreground: root.copyColor
     }
 
     KeyboardShortcutsView {

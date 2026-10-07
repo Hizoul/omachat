@@ -34,7 +34,9 @@ type Config struct {
 
 	// UiScale multiplies panel type. 1 is the theme default. 0 means unset
 	// and is treated as 1 when read.
-	UiScale float64 `json:"uiScale,omitempty"`
+	UiScale              float64 `json:"uiScale,omitempty"`
+	NotificationsEnabled *bool   `json:"notificationsEnabled,omitempty"`
+	NotificationPreviews  bool    `json:"notificationPreviews,omitempty"`
 
 	// AlwaysPopout opens OmaChat in its standalone window instead of the
 	// anchored bar panel. PopoutMode is "floating" or "tiled".
@@ -150,7 +152,32 @@ func (c *ConfigStore) Get() Config {
 		}
 		out.KeyboardShortcuts = shortcuts
 	}
+	if out.NotificationsEnabled != nil {
+		enabled := *out.NotificationsEnabled
+		out.NotificationsEnabled = &enabled
+	}
 	return out
+}
+
+func (c Config) NotificationsOn() bool {
+	return c.NotificationsEnabled == nil || *c.NotificationsEnabled
+}
+
+func (c *ConfigStore) SetNotifications(enabled, previews *bool) error {
+	if enabled == nil && previews == nil {
+		return errors.New("notification preferences are required")
+	}
+	return c.updateLocked(func(cfg map[string]any, loaded *Config) {
+		if enabled != nil {
+			value := *enabled
+			cfg["notificationsEnabled"] = value
+			loaded.NotificationsEnabled = &value
+		}
+		if previews != nil {
+			cfg["notificationPreviews"] = *previews
+			loaded.NotificationPreviews = *previews
+		}
+	})
 }
 
 // EnabledServices preserves legacy installations while fresh installs require a choice.

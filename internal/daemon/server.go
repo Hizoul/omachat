@@ -192,7 +192,7 @@ func (d *Daemon) handleConn(ctx context.Context, conn net.Conn) {
 			defer func() { <-slots }()
 			// A pre-change config snapshot must not be written after the setter's
 			// restart-required acknowledgement on another concurrent request.
-			if globalSetting(req.Method) || req.Method == wire.MethodSetEnabledServices {
+			if globalSetting(req.Method) || req.Method == wire.MethodSetEnabledServices || req.Method == wire.MethodUnpair {
 				d.configResponseMu.Lock()
 				defer d.configResponseMu.Unlock()
 			}
@@ -235,6 +235,9 @@ func (d *Daemon) dispatch(ctx context.Context, req wire.Request) wire.Response {
 	if req.Method == wire.MethodSetEnabledServices {
 		return d.handleSetEnabledServices(req)
 	}
+	if req.Method == wire.MethodSetNotifications || req.Method == wire.MethodNotifyMessage || req.Method == wire.MethodTestNotification {
+		return d.handleNotificationRequest(ctx, req)
+	}
 	if globalSetting(req.Method) {
 		return d.dispatchGMessages(ctx, req)
 	}
@@ -247,20 +250,25 @@ func (d *Daemon) dispatch(ctx context.Context, req wire.Request) wire.Response {
 			return wire.Response{ID: req.ID, Error: err.Error()}
 		}
 	}
+	var resp wire.Response
 	switch req.Network {
 	case wire.NetworkWhatsApp:
-		return d.dispatchWhatsApp(ctx, req)
+		resp = d.dispatchWhatsApp(ctx, req)
 	case wire.NetworkTelegram:
-		return d.dispatchTelegram(ctx, req)
+		resp = d.dispatchTelegram(ctx, req)
 	case wire.NetworkMessenger:
-		return d.dispatchMessenger(ctx, req)
+		resp = d.dispatchMessenger(ctx, req)
 	case wire.NetworkSignal:
-		return d.dispatchSignal(ctx, req)
+		resp = d.dispatchSignal(ctx, req)
 	case "", wire.NetworkGMessages:
-		return d.dispatchGMessages(ctx, req)
+		resp = d.dispatchGMessages(ctx, req)
 	default:
 		return wire.Response{ID: req.ID, OK: false, Error: "unknown network: " + req.Network}
 	}
+	if req.Method == wire.MethodUnpair && resp.OK {
+		d.notifications.dismiss(ctx, network)
+	}
+	return resp
 }
 
 func (d *Daemon) dispatchSignal(ctx context.Context, req wire.Request) wire.Response {
