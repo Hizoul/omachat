@@ -89,22 +89,23 @@ const (
 	// MethodPairFromBrowser lets the widget pair on its own: the daemon finds
 	// the browser profile and reads the cookies itself, so pairing never
 	// requires dropping to a terminal.
-	MethodPairFromBrowser        = "pairFromBrowser"
-	MethodSendMedia              = "sendMedia"
-	MethodPickImage              = "pickImage"
-	MethodListProfiles           = "listProfiles"
-	MethodSetProfile             = "setProfile"
-	MethodReact                  = "react"
-	MethodDiscardCapture         = "discardCapture"
-	MethodSetUiScale             = "setUiScale"
-	MethodSetWindowPreferences   = "setWindowPreferences"
-	MethodSetKeyboardShortcuts   = "setKeyboardShortcuts"
-	MethodConfig                 = "config"
-	MethodUnpair                 = "unpair"
-	MethodMedia                  = "media"
-	MethodAvatar                 = "avatar"
-	MethodRefresh                = "refresh"
-	MethodSetTelegramCredentials = "setTelegramCredentials"
+	MethodPairFromBrowser          = "pairFromBrowser"
+	MethodSendMedia                = "sendMedia"
+	MethodPickImage                = "pickImage"
+	MethodListProfiles             = "listProfiles"
+	MethodSetProfile               = "setProfile"
+	MethodReact                    = "react"
+	MethodDiscardCapture           = "discardCapture"
+	MethodSetUiScale               = "setUiScale"
+	MethodSetWindowPreferences     = "setWindowPreferences"
+	MethodSetKeyboardShortcuts     = "setKeyboardShortcuts"
+	MethodSetEmojiSearchPreference = "setEmojiSearchPreference"
+	MethodConfig                   = "config"
+	MethodUnpair                   = "unpair"
+	MethodMedia                    = "media"
+	MethodAvatar                   = "avatar"
+	MethodRefresh                  = "refresh"
+	MethodSetTelegramCredentials   = "setTelegramCredentials"
 )
 
 // ConnState describes where the daemon is in its lifecycle. The plugin keys
@@ -400,15 +401,16 @@ func (p *SetTelegramCredentialsParams) UnmarshalJSON(data []byte) error {
 // ConfigResult is safe to show in the panel. The Telegram API hash stays in
 // the daemon config file and is never sent to QML.
 type ConfigResult struct {
-	EnabledServices          []string          `json:"enabledServices"`
-	ServiceSelectionRequired bool              `json:"serviceSelectionRequired"`
-	RestartRequired          bool              `json:"restartRequired"`
-	UiScale                  float64           `json:"uiScale"`
-	AlwaysPopout             bool              `json:"alwaysPopout"`
-	PopoutMode               string            `json:"popoutMode"`
-	KeyboardShortcuts        map[string]string `json:"keyboardShortcuts"`
-	TelegramConfigured       bool              `json:"telegramConfigured"`
-	TelegramAPIID            int               `json:"telegramApiId,omitempty"`
+	EnabledServices             []string          `json:"enabledServices"`
+	ServiceSelectionRequired    bool              `json:"serviceSelectionRequired"`
+	RestartRequired             bool              `json:"restartRequired"`
+	UiScale                     float64           `json:"uiScale"`
+	AlwaysPopout                bool              `json:"alwaysPopout"`
+	PopoutMode                  string            `json:"popoutMode"`
+	KeyboardShortcuts           map[string]string `json:"keyboardShortcuts"`
+	KeepPreviousEmojiSearchText bool              `json:"keepPreviousEmojiSearchText"`
+	TelegramConfigured          bool              `json:"telegramConfigured"`
+	TelegramAPIID               int               `json:"telegramApiId,omitempty"`
 }
 
 type SetEnabledServicesParams struct {
@@ -426,6 +428,10 @@ type SetWindowPreferencesParams struct {
 
 type SetKeyboardShortcutsParams struct {
 	Shortcuts map[string]string `json:"shortcuts"`
+}
+
+type SetEmojiSearchPreferenceParams struct {
+	KeepPreviousEmojiSearchText bool `json:"keepPreviousEmojiSearchText"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

@@ -26,6 +26,7 @@ Panel {
   property int accountGeneration: 0
   property string popoutMode: "floating"
   property bool alwaysPopout: false
+  property bool keepPreviousEmojiSearchText: false
   property bool panelConfigLoaded: false
   property bool openPendingConfig: false
   property bool configLoadPending: false
@@ -378,6 +379,7 @@ Panel {
       var validated = Keybindings.validateOverrides(res.keyboardShortcuts || ({}))
       root.shortcutOverrides = validated.ok ? validated.overrides : ({})
       root.alwaysPopout = res.alwaysPopout === true
+      root.keepPreviousEmojiSearchText = res.keepPreviousEmojiSearchText === true
       root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
       root.panelConfigLoaded = true
       if (openAfter || root.openPendingConfig) root.open()
@@ -1010,6 +1012,7 @@ Panel {
     SettingsView {
       service: root.service
       alwaysPopout: root.alwaysPopout
+      keepPreviousEmojiSearchText: root.keepPreviousEmojiSearchText
       popoutMode: root.popoutMode
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -1020,6 +1023,7 @@ Panel {
         root.panelConfigLoaded = true
         root.setPopoutMode(mode)
       }
+      onEmojiSearchPreferenceSaved: function(keep) { root.keepPreviousEmojiSearchText = keep }
       onKeyboardShortcutsSaved: function(shortcuts) {
         var validated = Keybindings.validateOverrides(shortcuts || ({}))
         if (validated.ok) root.shortcutOverrides = validated.overrides
@@ -1321,6 +1325,7 @@ Panel {
       keyboardActionRouter: function(event) { root.routeKeyboardEvent(event) }
       viewActive: inboxLoader.visible
       settings: root.settings
+      keepPreviousEmojiSearchText: root.keepPreviousEmojiSearchText
       networkLabel: root.activeService === "whatsapp" ? "WhatsApp" : (root.activeService === "telegram" ? "Telegram" : (root.activeService === "messenger" ? "Messenger" : (root.activeService === "signal" ? "Signal" : "Google Messages")))
       uiScale: root.uiScale
     }

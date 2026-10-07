@@ -18,15 +18,16 @@ func (d *Daemon) PluginConfig() wire.ConfigResult {
 	}
 	_, credErr := d.config.TelegramCredentials()
 	return wire.ConfigResult{
-		EnabledServices:          enabled,
-		ServiceSelectionRequired: required,
-		RestartRequired:          d.restartPending,
-		UiScale:                  scale,
-		AlwaysPopout:             cfg.AlwaysPopout,
-		PopoutMode:               mode,
-		KeyboardShortcuts:        cfg.KeyboardShortcuts,
-		TelegramConfigured:       credErr == nil,
-		TelegramAPIID:            cfg.TelegramAPIID,
+		EnabledServices:             enabled,
+		ServiceSelectionRequired:    required,
+		RestartRequired:             d.restartPending,
+		UiScale:                     scale,
+		AlwaysPopout:                cfg.AlwaysPopout,
+		PopoutMode:                  mode,
+		KeyboardShortcuts:           cfg.KeyboardShortcuts,
+		KeepPreviousEmojiSearchText: cfg.KeepPreviousEmojiSearchText,
+		TelegramConfigured:          credErr == nil,
+		TelegramAPIID:               cfg.TelegramAPIID,
 	}
 }
 
@@ -40,4 +41,8 @@ func (d *Daemon) SetWindowPreferences(alwaysPopout bool, mode string) error {
 
 func (d *Daemon) SetKeyboardShortcuts(shortcuts map[string]string) error {
 	return d.config.SetKeyboardShortcuts(shortcuts)
+}
+
+func (d *Daemon) SetKeepPreviousEmojiSearchText(keep bool) error {
+	return d.config.SetKeepPreviousEmojiSearchText(keep)
 }
