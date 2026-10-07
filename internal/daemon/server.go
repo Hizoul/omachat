@@ -238,6 +238,20 @@ func (d *Daemon) dispatch(ctx context.Context, req wire.Request) wire.Response {
 	if req.Method == wire.MethodSetNotifications || req.Method == wire.MethodNotifyMessage || req.Method == wire.MethodTestNotification {
 		return d.handleNotificationRequest(ctx, req)
 	}
+	if req.Method == wire.MethodSetChatView {
+		p, err := decodeParams[wire.SetChatViewParams](req.Params)
+		if err == nil {
+			network := req.Network
+			if network == "" {
+				network = wire.NetworkGMessages
+			}
+			err = d.config.SetChatView(network, p.ConversationID, p.LastService, p.SidebarCollapsed)
+		}
+		if err != nil {
+			return wire.Response{ID: req.ID, Error: err.Error()}
+		}
+		return wire.Response{ID: req.ID, OK: true}
+	}
 	if globalSetting(req.Method) {
 		return d.dispatchGMessages(ctx, req)
 	}
@@ -267,6 +281,10 @@ func (d *Daemon) dispatch(ctx context.Context, req wire.Request) wire.Response {
 	}
 	if req.Method == wire.MethodUnpair && resp.OK {
 		d.notifications.dismiss(ctx, network)
+		empty := ""
+		if err := d.config.SetChatView(network, &empty, nil, nil); err != nil {
+			return wire.Response{ID: req.ID, Error: "unpaired, but could not clear the remembered conversation: " + err.Error()}
+		}
 	}
 	return resp
 }

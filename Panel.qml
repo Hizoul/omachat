@@ -23,6 +23,13 @@ Panel {
   property var notificationManager: null
   property string pendingConversationID: ""
   property string pendingConversationNetwork: ""
+  property bool sidebarCollapsed: false
+  property var lastConversations: ({})
+  property bool chatViewLoaded: false
+  property int chatViewRevision: 0
+  property var pendingChatViewChanges: []
+  property bool savingChatView: false
+  property string chatViewError: ""
   property bool settingsOpen: false
   property var shortcutOverrides: ({})
   property bool unpairing: false
@@ -82,12 +89,19 @@ Panel {
     function onStatusWAChanged() { root.unreadRevision++ }
     function onStatusTGChanged() { root.unreadRevision++ }
     function onStatusFBChanged() { root.unreadRevision++ }
+    function onConnectedChanged() {
+      if (root.service && root.service.connected) {
+        root.loadConfig()
+        root.flushChatViewChanges()
+      }
+    }
     function onStatusSGChanged() { root.unreadRevision++ }
     function onConversationsChanged() { root.unreadRevision++; root.selectPendingConversation() }
     function onConversationsWAChanged() { root.unreadRevision++; root.selectPendingConversation() }
     function onConversationsTGChanged() { root.unreadRevision++; root.selectPendingConversation() }
     function onConversationsFBChanged() { root.unreadRevision++; root.selectPendingConversation() }
-    function onConversationsSGChanged() { root.unreadRevision++ }
+    function onConversationsSGChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onPaired(network) { root.rememberConversation(network, "") }
   }
   readonly property bool noServices: serviceTabs.length === 0
   onServiceTabsChanged: syncActiveService()
@@ -285,10 +299,44 @@ Panel {
     if (!serviceTabs.some(function(tab) { return tab.value === v })) return
     root.settingsOpen = false
     root.activeService = v
+    saveChatView({lastService: v}, v)
     if (root.service) {
       root.service.currentNetwork = v
       if (v === "gmessages" || v === "whatsapp" || v === "telegram" || v === "messenger" || v === "signal") root.service.loadConversations(v)
     }
+  }
+
+  function toggleSidebar() {
+    sidebarCollapsed = !sidebarCollapsed
+    saveChatView({sidebarCollapsed: sidebarCollapsed}, activeService)
+    focusInitialControl()
+  }
+
+  function rememberConversation(network, id) {
+    if ((lastConversations[network] || "") === id) return
+    var next = Object.assign({}, lastConversations)
+    if (id === "") delete next[network]
+    else next[network] = id
+    lastConversations = next
+    saveChatView({conversationID: id}, network)
+  }
+
+  function saveChatView(params, network) {
+    chatViewRevision++
+    pendingChatViewChanges = pendingChatViewChanges.concat([{params: params, network: network}])
+    flushChatViewChanges()
+  }
+
+  function flushChatViewChanges() {
+    if (savingChatView || !service || !service.connected || !pendingChatViewChanges.length) return
+    var change = pendingChatViewChanges[0]
+    pendingChatViewChanges = pendingChatViewChanges.slice(1)
+    savingChatView = true
+    service.call("setChatView", change.params, function(ok) {
+      root.savingChatView = false
+      root.chatViewError = ok ? "" : "Could not remember the chat view. Rebuild the helper if it needs updating, then try again."
+      root.flushChatViewChanges()
+    }, change.network)
   }
 
   function isReadingConversation(network, id) {
@@ -427,6 +475,7 @@ Panel {
       return
     }
     var target = service
+    var chatViewRevisionAtRequest = chatViewRevision
     configLoadPending = true
     service.call("config", null, function(ok, res) {
       if (root.service !== target) return
@@ -444,6 +493,18 @@ Panel {
       root.alwaysPopout = res.alwaysPopout === true
       root.keepPreviousEmojiSearchText = res.keepPreviousEmojiSearchText === true
       root.popoutMode = res.popoutMode === "tiled" ? "tiled" : "floating"
+      if (!root.chatViewLoaded) {
+        root.chatViewLoaded = true
+        root.lastConversations = Object.assign({}, res.lastConversations || {}, root.lastConversations)
+        if (chatViewRevisionAtRequest === root.chatViewRevision) {
+          root.sidebarCollapsed = res.sidebarCollapsed === true
+          if (root.serviceTabs.some(function(tab) { return tab.value === res.lastService })) {
+            root.activeService = res.lastService
+            target.currentNetwork = res.lastService
+            target.loadConversations(res.lastService)
+          }
+        }
+      }
       root.panelConfigLoaded = true
       if (openAfter || root.openPendingConfig) root.open()
     }, "gmessages")
@@ -701,6 +762,7 @@ Panel {
     target.call("unpair", null, function(ok, res) {
       if (root.service !== target || root.accountGeneration !== generation) return
       root.unpairing = false
+      if (ok) root.rememberConversation(currentNet, "")
       if (!ok) {
         var advice = currentNet === "whatsapp"
           ? " Check WhatsApp on your phone under Linked devices."
@@ -759,9 +821,27 @@ Panel {
           width: parent.width
           height: Style.space(28)
 
+          PanelActionButton {
+            id: sidebarBtn
+            objectName: "sidebarToggleButton"
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            visible: inboxLoader.visible
+            enabled: inboxLoader.item && inboxLoader.item.selectedConvID !== ""
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText
+            iconText: root.sidebarCollapsed ? "󰍜" : "󰁍"
+            tooltipText: root.sidebarCollapsed ? "Show conversations" : "Hide conversations"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: root.toggleSidebar()
+          }
+
           OpticalGlyph {
             id: brandGlyph
-            anchors.left: parent.left
+            anchors.left: sidebarBtn.visible ? sidebarBtn.right : parent.left
+            anchors.leftMargin: sidebarBtn.visible ? Style.space(8) : 0
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(22)
             height: Style.space(22)
@@ -885,6 +965,17 @@ Panel {
               }
             }
           }
+        }
+
+        Text {
+          objectName: "chatViewErrorLabel"
+          width: parent.width
+          visible: root.chatViewError !== ""
+          text: root.chatViewError
+          color: root.urgentInk
+          font.family: root.fontFamily
+          font.pixelSize: root.fs(Style.font.bodySmall)
+          wrapMode: Text.Wrap
         }
 
         Text {
@@ -1393,6 +1484,9 @@ Panel {
       viewActive: inboxLoader.visible
       settings: root.settings
       keepPreviousEmojiSearchText: root.keepPreviousEmojiSearchText
+      sidebarCollapsed: root.sidebarCollapsed
+      lastConversations: root.lastConversations
+      onConversationSelected: function(network, id) { root.rememberConversation(network, id) }
       onSendingMediaChanged: if (!sendingMedia) Qt.callLater(root.selectPendingConversation)
       networkLabel: root.activeService === "whatsapp" ? "WhatsApp" : (root.activeService === "telegram" ? "Telegram" : (root.activeService === "messenger" ? "Messenger" : (root.activeService === "signal" ? "Signal" : "Google Messages")))
       uiScale: root.uiScale

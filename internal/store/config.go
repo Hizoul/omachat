@@ -34,9 +34,12 @@ type Config struct {
 
 	// UiScale multiplies panel type. 1 is the theme default. 0 means unset
 	// and is treated as 1 when read.
-	UiScale              float64 `json:"uiScale,omitempty"`
-	NotificationsEnabled *bool   `json:"notificationsEnabled,omitempty"`
-	NotificationPreviews  bool    `json:"notificationPreviews,omitempty"`
+	UiScale              float64           `json:"uiScale,omitempty"`
+	NotificationsEnabled *bool             `json:"notificationsEnabled,omitempty"`
+	NotificationPreviews bool              `json:"notificationPreviews,omitempty"`
+	LastService          string            `json:"lastService,omitempty"`
+	SidebarCollapsed     bool              `json:"sidebarCollapsed,omitempty"`
+	LastConversations    map[string]string `json:"lastConversations,omitempty"`
 
 	// AlwaysPopout opens OmaChat in its standalone window instead of the
 	// anchored bar panel. PopoutMode is "floating" or "tiled".
@@ -156,6 +159,13 @@ func (c *ConfigStore) Get() Config {
 		enabled := *out.NotificationsEnabled
 		out.NotificationsEnabled = &enabled
 	}
+	if out.LastConversations != nil {
+		conversations := make(map[string]string, len(out.LastConversations))
+		for network, id := range out.LastConversations {
+			conversations[network] = id
+		}
+		out.LastConversations = conversations
+	}
 	return out
 }
 
@@ -176,6 +186,41 @@ func (c *ConfigStore) SetNotifications(enabled, previews *bool) error {
 		if previews != nil {
 			cfg["notificationPreviews"] = *previews
 			loaded.NotificationPreviews = *previews
+		}
+	})
+}
+
+// SetChatView merges only supplied view preferences so service switches cannot
+// overwrite another service's remembered conversation.
+func (c *ConfigStore) SetChatView(network string, conversationID, lastService *string, sidebarCollapsed *bool) error {
+	knownService := func(service string) bool {
+		return service == "gmessages" || service == "whatsapp" || service == "telegram" || service == "messenger" || service == "signal"
+	}
+	if lastService != nil && !knownService(*lastService) {
+		return errors.New("unknown last service")
+	}
+	if conversationID != nil && (!knownService(network) || len(*conversationID) > 1024) {
+		return errors.New("invalid remembered conversation")
+	}
+	return c.updateLocked(func(cfg map[string]any, loaded *Config) {
+		if lastService != nil {
+			cfg["lastService"] = *lastService
+			loaded.LastService = *lastService
+		}
+		if sidebarCollapsed != nil {
+			cfg["sidebarCollapsed"] = *sidebarCollapsed
+			loaded.SidebarCollapsed = *sidebarCollapsed
+		}
+		if conversationID != nil {
+			if loaded.LastConversations == nil {
+				loaded.LastConversations = make(map[string]string)
+			}
+			if *conversationID == "" {
+				delete(loaded.LastConversations, network)
+			} else {
+				loaded.LastConversations[network] = *conversationID
+			}
+			cfg["lastConversations"] = loaded.LastConversations
 		}
 	})
 }

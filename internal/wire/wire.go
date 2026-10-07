@@ -67,13 +67,13 @@ type Event struct {
 
 // Event names.
 const (
-	EventStatus       = "status"
-	EventConversation = "conversation"
-	EventMessage      = "message"
-	EventQR           = "qr"
-	EventEmoji        = "emoji"
-	EventPaired       = "paired"
-	EventHistory      = "history"
+	EventStatus           = "status"
+	EventConversation     = "conversation"
+	EventMessage          = "message"
+	EventQR               = "qr"
+	EventEmoji            = "emoji"
+	EventPaired           = "paired"
+	EventHistory          = "history"
 	EventNotificationOpen = "notificationOpen"
 )
 
@@ -100,6 +100,7 @@ const (
 	MethodReact                    = "react"
 	MethodDiscardCapture           = "discardCapture"
 	MethodSetUiScale               = "setUiScale"
+	MethodSetChatView              = "setChatView"
 	MethodSetWindowPreferences     = "setWindowPreferences"
 	MethodSetKeyboardShortcuts     = "setKeyboardShortcuts"
 	MethodSetEmojiSearchPreference = "setEmojiSearchPreference"
@@ -425,8 +426,11 @@ type ConfigResult struct {
 	KeyboardShortcuts           map[string]string `json:"keyboardShortcuts"`
 	KeepPreviousEmojiSearchText bool              `json:"keepPreviousEmojiSearchText"`
 	WhatsAppHistoryCacheMB      int               `json:"whatsappHistoryCacheMB"`
-	NotificationsEnabled       bool              `json:"notificationsEnabled"`
-	NotificationPreviews       bool              `json:"notificationPreviews"`
+	NotificationsEnabled        bool              `json:"notificationsEnabled"`
+	NotificationPreviews        bool              `json:"notificationPreviews"`
+	LastService                 string            `json:"lastService"`
+	SidebarCollapsed            bool              `json:"sidebarCollapsed"`
+	LastConversations           map[string]string `json:"lastConversations"`
 	TelegramConfigured          bool              `json:"telegramConfigured"`
 	TelegramAPIID               int               `json:"telegramApiId,omitempty"`
 }
@@ -454,6 +458,12 @@ type SetEmojiSearchPreferenceParams struct {
 
 type SetWhatsAppHistoryCacheParams struct {
 	SizeMB int `json:"sizeMB"`
+}
+
+type SetChatViewParams struct {
+	LastService      *string `json:"lastService,omitempty"`
+	SidebarCollapsed *bool   `json:"sidebarCollapsed,omitempty"`
+	ConversationID   *string `json:"conversationID,omitempty"`
 }
 
 type SetNotificationsParams struct {

@@ -11,7 +11,7 @@ Item {
   id: root
 
   property var service: null
-  readonly property var keyboardInitialFocus: convList
+  readonly property var keyboardInitialFocus: sidebarVisible ? convList : messageList
   property color foreground: Model.readableInk(Color.popups.background, Color.popups.text, 7)
   property string fontFamily: Style.font.family
   property real uiScale: 1
@@ -20,6 +20,10 @@ Item {
   property var settings: null
   property var keyboardActionRouter: null
   property string network: "gmessages"
+  property bool sidebarCollapsed: false
+  property var lastConversations: ({})
+  readonly property bool sidebarVisible: !sidebarCollapsed || selectedConvID === ""
+  signal conversationSelected(string network, string id)
   readonly property bool isWhatsApp: network === "whatsapp"
   readonly property bool isTelegram: network === "telegram"
   readonly property bool isMessenger: network === "messenger"
@@ -215,14 +219,26 @@ Item {
     reactingTo = ""
     threadError = ""
 
-    var restoredID = _selectedByNet[network] || ""
     selectedConvID = ""
     messages = []
     grouped = []
-    if (restoredID) {
-      selectConversation(restoredID)
-    } else {
-      if (composer) composer.text = ""
+    if (composer) composer.text = ""
+    restoreConversation()
+  }
+
+  onConversationsChanged: restoreConversation()
+  onLastConversationsChanged: restoreConversation()
+  Component.onCompleted: restoreConversation()
+
+  function restoreConversation() {
+    if (!composer || selectedConvID !== "") return
+    var sessionID = _selectedByNet[network] || ""
+    var id = sessionID || lastConversations[network] || ""
+    if (id && (sessionID || conversations.some(function(conv) { return conv.id === id }))) {
+      selectConversation(id, false)
+      if (panelOpen && !sidebarVisible) Qt.callLater(function() {
+        if (root.panelOpen && root.selectedConvID === id && !root.composerFocus) messageList.forceActiveFocus()
+      })
     }
   }
 
@@ -308,6 +324,10 @@ Item {
   }
 
   function focusConversationList() {
+    if (!sidebarVisible) {
+      if (messageList) messageList.forceActiveFocus()
+      return
+    }
     if (!convList || convList.count < 1) return
     var selectedIndex = -1
     for (var i = 0; i < visibleConversations.length; i++) {
@@ -430,8 +450,9 @@ Item {
     }, network)
   }
 
-  function selectConversation(id) {
-    if (id === selectedConvID || sendingMedia) return
+  function selectConversation(id, remember) {
+    if (sendingMedia) return
+    if (id === selectedConvID) return
     var saved = Object.assign({}, _draftsByNet)
     if (selectedConvID) {
       var netDrafts = Object.assign({}, saved[network] || {})
@@ -461,6 +482,10 @@ Item {
     reactingTo = ""
     pendingAttachment = ""
     selectedConvID = id
+    var nextSel = Object.assign({}, _selectedByNet)
+    nextSel[network] = id
+    _selectedByNet = nextSel
+    if (remember !== false) conversationSelected(network, id)
     var currentNetDrafts = _draftsByNet[network] || {}
     composer.text = currentNetDrafts[id] || ""
     attachCaption.text = ""
@@ -1061,6 +1086,7 @@ Item {
 
   function clearNetwork(net) {
     var targetNet = net || root.network
+    conversationSelected(targetNet, "")
     var epochs = Object.assign({}, root._networkEpochs)
     epochs[targetNet] = (epochs[targetNet] || 0) + 1
     root._networkEpochs = epochs
@@ -1251,10 +1277,12 @@ Item {
 
   Item {
     id: listPane
+    objectName: "conversationSidebar"
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    width: Math.round(parent.width * 0.32)
+    width: visible ? Math.round(parent.width * 0.32) : 0
+    visible: root.sidebarVisible
 
     PanelSectionHeader {
       id: inboxHeader
@@ -1450,18 +1478,20 @@ Item {
 
   Rectangle {
     id: paneRule
+    visible: root.sidebarVisible
     anchors.left: listPane.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    anchors.leftMargin: Style.space(8)
-    width: 1
+    anchors.leftMargin: visible ? Style.space(8) : 0
+    width: visible ? 1 : 0
     color: Color.popups.border
   }
 
   Item {
     id: threadPane
+    objectName: "threadPane"
     anchors.left: paneRule.right
-    anchors.leftMargin: Style.space(10)
+    anchors.leftMargin: root.sidebarVisible ? Style.space(10) : 0
     anchors.right: parent.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom

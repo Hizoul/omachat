@@ -27,8 +27,11 @@ func (d *Daemon) PluginConfig() wire.ConfigResult {
 		KeyboardShortcuts:           cfg.KeyboardShortcuts,
 		KeepPreviousEmojiSearchText: cfg.KeepPreviousEmojiSearchText,
 		WhatsAppHistoryCacheMB:      cfg.WhatsAppHistoryCacheMB,
-		NotificationsEnabled:       cfg.NotificationsOn(),
-		NotificationPreviews:       cfg.NotificationPreviews,
+		NotificationsEnabled:        cfg.NotificationsOn(),
+		NotificationPreviews:        cfg.NotificationPreviews,
+		LastService:                 cfg.LastService,
+		SidebarCollapsed:            cfg.SidebarCollapsed,
+		LastConversations:           cfg.LastConversations,
 		TelegramConfigured:          credErr == nil,
 		TelegramAPIID:               cfg.TelegramAPIID,
 	}

@@ -184,6 +184,13 @@ alert opens its conversation. The conversation you are actively reading stays
 quiet; history refreshes, outgoing messages, reactions, and receipt updates do
 not produce new alerts. Your desktop controls Do Not Disturb and sounds.
 
+Use the arrow beside the OmaChat title to hide the conversation sidebar; the
+menu button brings it back. OmaChat remembers this layout, the last service,
+and the last conversation per service across shell restarts. Reopening keeps
+focus on the conversation list (or message history when the sidebar is hidden);
+press Enter to focus the composer. If a saved conversation is unavailable, the
+inbox stays visible so you can choose another chat.
+
 Pick an attachment from the composer. Google Messages sends captions separately
 after the attachment; check the conversation before retrying a caption reported
 as unconfirmed. WhatsApp, Telegram, and Messenger include captions with images;
@@ -227,7 +234,7 @@ files as new downloads complete.
 | `~/.local/share/omachat/telegram.session` and `telegram_store.json` | Telegram credentials and chat cache |
 | `~/.local/share/omachat/messenger_session.json` and `messenger.db` | Messenger session cookies and encrypted-device state |
 | `~/.local/share/omachat/signal-cli/` and `signal_store.json` | Signal linked-device keys and the locally accumulated message cache |
-| `~/.local/share/omachat/config.json` | Service choices, notification preferences, text size, browser selection, Telegram API credentials |
+| `~/.local/share/omachat/config.json` | Service choices, notification preferences, sidebar layout, last service and per-service conversation IDs, text size, browser selection, Telegram API credentials |
 | `~/.cache/omachat/media/`, `media_whatsapp/`, `media_telegram/`, `media_messenger/`, `media_signal/` | Service-specific media caches |
 | `$XDG_RUNTIME_DIR/omachat/daemon.sock` | Private plugin/helper control socket |
 
