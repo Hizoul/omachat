@@ -119,6 +119,7 @@ func New(log zerolog.Logger, paths *store.Paths) *Daemon {
 		status: wire.Status{Network: wire.NetworkGMessages, State: wire.StateUnpaired, PhoneOK: true},
 	}
 	d.wa = whatsapp.New(log, paths, d.PublishEvent)
+	_ = d.wa.SetHistoryCacheMB(d.config.Get().WhatsAppHistoryCacheMB)
 	d.tg = telegram.New(log, paths, d.PublishEvent, d.config)
 	d.fb = messenger.New(log, paths, d.PublishEvent)
 	d.sg = signalbackend.New(log, paths, d.PublishEvent)
@@ -134,6 +135,9 @@ func New(log zerolog.Logger, paths *store.Paths) *Daemon {
 // SetWhatsApp overrides the WhatsApp backend instance (useful for unit testing).
 func (d *Daemon) SetWhatsApp(wa *whatsapp.Backend) {
 	d.wa = wa
+	if wa != nil {
+		_ = wa.SetHistoryCacheMB(d.config.Get().WhatsAppHistoryCacheMB)
+	}
 }
 
 // WhatsApp returns the WhatsApp backend instance.

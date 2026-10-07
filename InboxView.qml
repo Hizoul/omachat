@@ -101,6 +101,7 @@ Item {
   property double historyCursorTime: 0
   property string historyError: ""
   property string historyNotice: ""
+  property string historyFetchState: ""
   property var historyCursors: ({})
   property int historyRequest: 0
   property int viewportRevision: 0
@@ -451,6 +452,7 @@ Item {
     historyCursorTime = 0
     historyError = ""
     historyNotice = ""
+    historyFetchState = ""
     historyCursors = ({})
     stopPlayback()
     if (recording) stopRecording(false)
@@ -522,7 +524,7 @@ Item {
     var time = Number(res.cursorTime || 0)
     var key = JSON.stringify([id, time])
     historyCursorStalled = false
-    hasOlder = res.hasMore === true && id !== ""
+    hasOlder = (res.hasMore === true || res.canFetchOlder === true || res.historyFetchState === "loading") && id !== ""
     if (hasOlder && older && historyCursors[key]) {
       hasOlder = false
       historyCursorStalled = true
@@ -562,6 +564,7 @@ Item {
       displayMessages(Model.mergePage(messages, combined, false), initial || messageList.atYEnd)
       historyError = ""
       historyNotice = String(res.historyNotice || "")
+      historyFetchState = String(res.historyFetchState || "")
       if (!historyExpanded || historyCursorStalled) {
         readHistoryCursor(res, false)
       }
@@ -570,7 +573,7 @@ Item {
   }
 
   function loadOlderMessages() {
-    if (!service || selectedConvID === "" || loadingMessages || loadingOlder || !hasOlder) return
+    if (!service || selectedConvID === "" || loadingMessages || loadingOlder || historyFetchState === "loading" || !hasOlder) return
     loadingOlder = true
     historyError = ""
     var request = ++historyRequest
@@ -582,6 +585,23 @@ Item {
       if (source !== service || target !== selectedConvID || generation !== selectionGeneration || request !== historyRequest) return
       loadingOlder = false
       if (!ok) { historyError = "Could not load older messages. Try again."; return }
+      historyFetchState = String(res.historyFetchState || "")
+      if (historyFetchState === "loading") {
+        hasOlder = true
+        historyNotice = "Requesting older history from your phone…"
+        return
+      }
+      if (historyFetchState === "unavailable") {
+        hasOlder = false
+        historyNotice = String(res.historyNotice || "Your phone did not provide an older history page.")
+        return
+      }
+      if (historyFetchState === "failed") {
+        hasOlder = true
+        historyError = String(res.historyNotice || "Could not load older messages. Try again.")
+        return
+      }
+      historyNotice = String(res.historyNotice || "")
       displayMessages(Model.mergePage(messages, res.messages || [], true), false)
       historyExpanded = true
       readHistoryCursor(res, true)
@@ -1022,6 +1042,20 @@ Item {
     }
     function onPaired(net) {
       root.clearNetwork(net)
+    }
+    function onHistoryUpdated(update, net) {
+      if (net !== root.network || !update || update.conversationID !== root.selectedConvID) return
+      root.historyFetchState = String(update.state || "")
+      root.historyNotice = String(update.notice || "")
+      if (update.state === "complete") {
+        root.historyError = ""
+        if (root.hasOlder && !root.loadingOlder) Qt.callLater(function() { root.loadOlderMessages() })
+      } else if (update.state === "failed") {
+        root.hasOlder = true
+        root.historyError = root.historyNotice || "Could not load older messages. Try again."
+      } else if (update.state === "unavailable") {
+        root.hasOlder = false
+      }
     }
   }
 
@@ -1514,12 +1548,12 @@ Item {
       Button {
         focusable: true
         Accessible.role: Accessible.Button
-        Accessible.name: root.loadingOlder ? "Loading older messages..." : "Load older messages"
+        Accessible.name: root.loadingOlder || root.historyFetchState === "loading" ? "Loading older messages..." : (root.historyFetchState === "failed" ? "Retry older messages" : "Load older messages")
         objectName: "loadOlderButton"
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasOlder || root.loadingOlder
-        enabled: !root.loadingOlder && !root.loadingMessages
-        text: root.loadingOlder ? "Loading older messages..." : "Load older messages"
+        enabled: !root.loadingOlder && !root.loadingMessages && root.historyFetchState !== "loading"
+        text: root.loadingOlder || root.historyFetchState === "loading" ? "Loading older messages..." : (root.historyFetchState === "failed" ? "Retry older messages" : "Load older messages")
         foreground: root.foreground
         fontFamily: root.fontFamily
         onClicked: root.loadOlderMessages()
@@ -1529,7 +1563,7 @@ Item {
         objectName: "historyStatus"
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, parent.width - (parent.children[0].visible ? parent.children[0].width + parent.spacing : 0))
-        text: root.historyError || root.historyNotice || (!root.hasOlder && !root.loadingMessages ? (root.isWhatsApp ? "Showing cached WhatsApp history. On-demand phone history is not requested in this version." : "All available history loaded") : "")
+        text: root.historyError || root.historyNotice || (root.historyFetchState === "loading" ? "Requesting older history from your phone…" : (!root.hasOlder && !root.loadingMessages ? (root.isWhatsApp ? "No older cached messages are available." : "All available history loaded") : ""))
         textFormat: Text.PlainText
         wrapMode: Text.WordWrap
         color: root.historyError ? root.errorInk : root.dim
@@ -1541,6 +1575,18 @@ Item {
     ListView {
       id: messageList
       objectName: "messageList"
+      property real previousHistoryContentY: contentY
+      property bool historyAutoBlocked: false
+      onContentYChanged: {
+        var previous = previousHistoryContentY
+        previousHistoryContentY = contentY
+        if (!root.isWhatsApp || !moving) return
+        if (contentY > height * 0.15) historyAutoBlocked = false
+        else if (!historyAutoBlocked && contentY < previous && root.hasOlder && !root.loadingOlder && !root.loadingMessages) {
+          historyAutoBlocked = true
+          Qt.callLater(function() { root.loadOlderMessages() })
+        }
+      }
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: historyControls.bottom

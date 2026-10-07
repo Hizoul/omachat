@@ -72,6 +72,7 @@ const (
 	EventQR           = "qr"
 	EventEmoji        = "emoji"
 	EventPaired       = "paired"
+	EventHistory      = "history"
 )
 
 // Method names.
@@ -100,6 +101,7 @@ const (
 	MethodSetWindowPreferences     = "setWindowPreferences"
 	MethodSetKeyboardShortcuts     = "setKeyboardShortcuts"
 	MethodSetEmojiSearchPreference = "setEmojiSearchPreference"
+	MethodSetWhatsAppHistoryCache  = "setWhatsAppHistoryCache"
 	MethodConfig                   = "config"
 	MethodUnpair                   = "unpair"
 	MethodMedia                    = "media"
@@ -284,12 +286,20 @@ type MessagesParams struct {
 }
 
 type MessagesResult struct {
-	ConversationID string    `json:"conversationID"`
-	Messages       []Message `json:"messages"`
-	CursorID       string    `json:"cursorID,omitempty"`
-	CursorTime     int64     `json:"cursorTime,omitempty"`
-	HasMore        bool      `json:"hasMore"`
-	HistoryNotice  string    `json:"historyNotice,omitempty"`
+	ConversationID    string    `json:"conversationID"`
+	Messages          []Message `json:"messages"`
+	CursorID          string    `json:"cursorID,omitempty"`
+	CursorTime        int64     `json:"cursorTime,omitempty"`
+	HasMore           bool      `json:"hasMore"`
+	HistoryNotice     string    `json:"historyNotice,omitempty"`
+	CanFetchOlder     bool      `json:"canFetchOlder,omitempty"`
+	HistoryFetchState string    `json:"historyFetchState,omitempty"`
+}
+
+type HistoryUpdate struct {
+	ConversationID string `json:"conversationID"`
+	State          string `json:"state"`
+	Notice         string `json:"notice,omitempty"`
 }
 
 type SendParams struct {
@@ -409,6 +419,7 @@ type ConfigResult struct {
 	PopoutMode                  string            `json:"popoutMode"`
 	KeyboardShortcuts           map[string]string `json:"keyboardShortcuts"`
 	KeepPreviousEmojiSearchText bool              `json:"keepPreviousEmojiSearchText"`
+	WhatsAppHistoryCacheMB      int               `json:"whatsappHistoryCacheMB"`
 	TelegramConfigured          bool              `json:"telegramConfigured"`
 	TelegramAPIID               int               `json:"telegramApiId,omitempty"`
 }
@@ -432,6 +443,10 @@ type SetKeyboardShortcutsParams struct {
 
 type SetEmojiSearchPreferenceParams struct {
 	KeepPreviousEmojiSearchText bool `json:"keepPreviousEmojiSearchText"`
+}
+
+type SetWhatsAppHistoryCacheParams struct {
+	SizeMB int `json:"sizeMB"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

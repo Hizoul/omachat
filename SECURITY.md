@@ -17,6 +17,7 @@ or working exploit details in a public issue.
 - Pairing credentials: `~/.local/share/omachat/session.json` (0600)
 - WhatsApp device store: `~/.local/share/omachat/whatsapp.db` (0600 from creation)
 - WhatsApp chat cache: `~/.local/share/omachat/whatsapp_store.json` (0600)
+- WhatsApp paged history cache: `~/.local/share/omachat/whatsapp_history.sqlite` (0600)
 - Telegram session and chat cache: `~/.local/share/omachat/telegram.session` and `telegram_store.json` (0600)
 - Messenger session, encrypted-device state, and chat cache: `~/.local/share/omachat/messenger.db` and `messenger_store.json` (0600)
 - Signal linked-device keys and local message cache: `~/.local/share/omachat/signal-cli/` and `signal_store.json`; OmaChat creates the enclosing directories as 0700 and its message cache as 0600, while file modes within the `signal-cli`-managed directory are controlled by `signal-cli`
