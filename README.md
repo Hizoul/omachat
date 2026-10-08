@@ -207,7 +207,9 @@ files as new downloads complete.
 | --- | --- |
 | `~/.config/omarchy/plugins/onelegdave.omachat/` | Plugin checkout and locally built helper |
 | `~/.local/share/omachat/session.json` | Google Messages credentials |
-| `~/.local/share/omachat/whatsapp.db` and `whatsapp_store.json` | WhatsApp credentials and chat cache |
+| `~/.local/share/omachat/whatsapp.db` | WhatsApp device credentials |
+| `~/.local/share/omachat/whatsapp_store.json` | WhatsApp conversation index and legacy cache |
+| `~/.local/share/omachat/whatsapp_history.sqlite` | WhatsApp paged message history |
 | `~/.local/share/omachat/telegram.session` and `telegram_store.json` | Telegram credentials and chat cache |
 | `~/.local/share/omachat/messenger_session.json` and `messenger.db` | Messenger session cookies and encrypted-device state |
 | `~/.local/share/omachat/signal-cli/` and `signal_store.json` | Signal linked-device keys and the locally accumulated message cache |
