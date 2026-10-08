@@ -29,7 +29,9 @@ creation and text send/receive, contact discovery, a locally accumulated convers
 incoming and outgoing attachments with captions, voice notes, and emoji
 reactions including add, replace, remove, and phone-synced updates. Attachments
 download lazily into `~/.cache/omachat/media_signal/` and are subject to the
-shared 256 MiB cache budget.
+shared 256 MiB cache budget. Contact profile pictures and group avatars are
+retrieved from `signal-cli` in the background, cached in the same directory,
+and use initials when no image is available.
 
 Use the plus button beside conversation search to start a chat with a Signal
 contact or create a group. Signal discovery does not fill the inbox with empty

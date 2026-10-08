@@ -1,9 +1,14 @@
 package signal
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"sync"
@@ -180,6 +185,115 @@ func TestRefreshDoesNotExposeEmptyContactsOrGroups(t *testing.T) {
 	conversations := b.Conversations(0)
 	if len(conversations) != 1 || conversations[0].ID != groupPrefix+"group-id" || !conversations[0].IsGroup {
 		t.Fatalf("active group was not exposed: %#v", conversations)
+	}
+}
+
+func TestFetchAvatarStoresSignalContactAvatar(t *testing.T) {
+	var imageBuffer bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.White)
+	if err := png.Encode(&imageBuffer, img); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeCaller{responses: map[string]string{
+		"getAvatar": `{"data":"` + base64.StdEncoding.EncodeToString(imageBuffer.Bytes()) + `"}`,
+	}}
+	b := New(zerolog.Nop(), testPaths(t), nil)
+	b.SetClient(fake)
+	b.account = "+15550001111"
+	conversationID := directPrefix + "+15550002222"
+	b.ensureConversation(conversationID, "Taylor", false)
+
+	if err := b.fetchAvatar(context.Background(), conversationID); err != nil {
+		t.Fatal(err)
+	}
+	conversation := b.Conversations(0)[0]
+	if conversation.AvatarPath == "" {
+		t.Fatal("avatar path was not stored")
+	}
+	if data, err := os.ReadFile(conversation.AvatarPath); err != nil || len(data) == 0 {
+		t.Fatalf("avatar file = %q, err = %v", conversation.AvatarPath, err)
+	}
+	params, ok := fake.params["getAvatar"].(map[string]any)
+	if !ok || params["account"] != b.account || params["profile"] != "+15550002222" {
+		t.Fatalf("getAvatar params = %#v", fake.params["getAvatar"])
+	}
+}
+
+func TestFetchAvatarUsesGroupIDAndAcceptsRawBase64Result(t *testing.T) {
+	var imageBuffer bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.White)
+	if err := png.Encode(&imageBuffer, img); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeCaller{responses: map[string]string{
+		"getAvatar": `"` + base64.StdEncoding.EncodeToString(imageBuffer.Bytes()) + `"`,
+	}}
+	b := New(zerolog.Nop(), testPaths(t), nil)
+	b.SetClient(fake)
+	b.account = "+15550001111"
+	conversationID := groupPrefix + "group-id"
+	b.ensureConversation(conversationID, "Friends", true)
+	if err := b.fetchAvatar(context.Background(), conversationID); err != nil {
+		t.Fatal(err)
+	}
+	params := fake.params["getAvatar"].(map[string]any)
+	if params["groupId"] != "group-id" || params["profile"] != nil {
+		t.Fatalf("getAvatar group params = %#v", params)
+	}
+	if got := b.Conversations(0)[0].AvatarPath; got == "" {
+		t.Fatal("group avatar path was not stored")
+	}
+}
+
+func TestFetchAvatarKeepsInitialsWhenNoAvatarIsReturned(t *testing.T) {
+	fake := &fakeCaller{responses: map[string]string{"getAvatar": `null`}}
+	b := New(zerolog.Nop(), testPaths(t), nil)
+	b.SetClient(fake)
+	b.account = "+15550001111"
+	conversationID := directPrefix + "+15550002222"
+	b.ensureConversation(conversationID, "Taylor", false)
+	conversation := b.convs[conversationID]
+	conversation.AvatarPath = filepath.Join(b.paths.SignalMediaDir(), "avatar-old.img")
+	b.convs[conversationID] = conversation
+	if err := b.fetchAvatar(context.Background(), conversationID); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.Conversations(0)[0]; got.AvatarPath != "" || got.Initials != "T" {
+		t.Fatalf("no-avatar fallback = %#v", got)
+	}
+}
+
+func TestRefreshFetchesConversationAvatarsInBackground(t *testing.T) {
+	var imageBuffer bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.White)
+	if err := png.Encode(&imageBuffer, img); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeCaller{responses: map[string]string{
+		"getAvatar": `{"data":"` + base64.StdEncoding.EncodeToString(imageBuffer.Bytes()) + `"}`,
+	}}
+	b := New(zerolog.Nop(), testPaths(t), nil)
+	b.SetClient(fake)
+	b.ensureConversation(directPrefix+"+15550002222", "Taylor", false)
+	if err := b.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Stop()
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if conversations := b.Conversations(0); conversations[0].AvatarPath != "" {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("background refresh did not store avatar")
+		case <-ticker.C:
+		}
 	}
 }
 

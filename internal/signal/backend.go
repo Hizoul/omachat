@@ -47,6 +47,10 @@ type Backend struct {
 	expiryTimers   map[string]*time.Timer
 	client         Caller
 	cancel         context.CancelFunc
+	avatarCtx      context.Context
+	avatarQueue    []string
+	avatarPending  map[string]bool
+	avatarWorker   bool
 }
 
 func New(log zerolog.Logger, paths *appStore.Paths, publish func(wire.Event)) *Backend {
@@ -59,7 +63,7 @@ func New(log zerolog.Logger, paths *appStore.Paths, publish func(wire.Event)) *B
 		status:  wire.Status{Network: wire.NetworkSignal, State: wire.StateUnpaired, PhoneOK: true},
 		account: data.Account, convs: data.Conversations, order: data.Order, messages: data.Messages,
 		reactionActors: data.ReactionActors, expirations: data.Expirations, expiryTimers: make(map[string]*time.Timer),
-		client: NewRPCClient(),
+		client: NewRPCClient(), avatarPending: make(map[string]bool),
 	}
 	b.mu.Lock()
 	b.pruneExpiredLocked(time.Now().UnixMilli())
@@ -91,6 +95,7 @@ func (b *Backend) Start(parent context.Context) error {
 	b.mu.Lock()
 	ctx, cancel := context.WithCancel(parent)
 	b.cancel = cancel
+	b.avatarCtx = ctx
 	client := b.client
 	b.mu.Unlock()
 	if b.paths == nil {
@@ -269,6 +274,7 @@ func (b *Backend) Refresh(ctx context.Context) error {
 		}
 		b.publish(wire.Event{Event: wire.EventStatus, Network: wire.NetworkSignal, Data: b.Status()})
 	}
+	b.queueAvatarFetches()
 	return nil
 }
 
