@@ -26,6 +26,7 @@ func (d *Daemon) PluginConfig() wire.ConfigResult {
 		PopoutMode:                  mode,
 		KeyboardShortcuts:           cfg.KeyboardShortcuts,
 		KeepPreviousEmojiSearchText: cfg.KeepPreviousEmojiSearchText,
+		UnifiedInboxEnabled:         cfg.UnifiedInboxEnabled,
 		WhatsAppHistoryCacheMB:      cfg.WhatsAppHistoryCacheMB,
 		NotificationsEnabled:        cfg.NotificationsOn(),
 		NotificationPreviews:        cfg.NotificationPreviews,
@@ -51,6 +52,10 @@ func (d *Daemon) SetKeyboardShortcuts(shortcuts map[string]string) error {
 
 func (d *Daemon) SetKeepPreviousEmojiSearchText(keep bool) error {
 	return d.config.SetKeepPreviousEmojiSearchText(keep)
+}
+
+func (d *Daemon) SetUnifiedInboxEnabled(enabled bool) error {
+	return d.config.SetUnifiedInboxEnabled(enabled)
 }
 
 func (d *Daemon) SetWhatsAppHistoryCacheMB(size int) error {

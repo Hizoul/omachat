@@ -92,28 +92,29 @@ const (
 	// MethodPairFromBrowser lets the widget pair on its own: the daemon finds
 	// the browser profile and reads the cookies itself, so pairing never
 	// requires dropping to a terminal.
-	MethodPairFromBrowser          = "pairFromBrowser"
-	MethodSendMedia                = "sendMedia"
-	MethodPickImage                = "pickImage"
-	MethodListProfiles             = "listProfiles"
-	MethodSetProfile               = "setProfile"
-	MethodReact                    = "react"
-	MethodDiscardCapture           = "discardCapture"
-	MethodSetUiScale               = "setUiScale"
-	MethodSetChatView              = "setChatView"
-	MethodSetWindowPreferences     = "setWindowPreferences"
-	MethodSetKeyboardShortcuts     = "setKeyboardShortcuts"
-	MethodSetEmojiSearchPreference = "setEmojiSearchPreference"
-	MethodSetWhatsAppHistoryCache  = "setWhatsAppHistoryCache"
-	MethodSetNotifications         = "setNotifications"
-	MethodNotifyMessage            = "notifyMessage"
-	MethodTestNotification         = "testNotification"
-	MethodConfig                   = "config"
-	MethodUnpair                   = "unpair"
-	MethodMedia                    = "media"
-	MethodAvatar                   = "avatar"
-	MethodRefresh                  = "refresh"
-	MethodSetTelegramCredentials   = "setTelegramCredentials"
+	MethodPairFromBrowser           = "pairFromBrowser"
+	MethodSendMedia                 = "sendMedia"
+	MethodPickImage                 = "pickImage"
+	MethodListProfiles              = "listProfiles"
+	MethodSetProfile                = "setProfile"
+	MethodReact                     = "react"
+	MethodDiscardCapture            = "discardCapture"
+	MethodSetUiScale                = "setUiScale"
+	MethodSetChatView               = "setChatView"
+	MethodSetWindowPreferences      = "setWindowPreferences"
+	MethodSetKeyboardShortcuts      = "setKeyboardShortcuts"
+	MethodSetEmojiSearchPreference  = "setEmojiSearchPreference"
+	MethodSetUnifiedInboxPreference = "setUnifiedInboxPreference"
+	MethodSetWhatsAppHistoryCache   = "setWhatsAppHistoryCache"
+	MethodSetNotifications          = "setNotifications"
+	MethodNotifyMessage             = "notifyMessage"
+	MethodTestNotification          = "testNotification"
+	MethodConfig                    = "config"
+	MethodUnpair                    = "unpair"
+	MethodMedia                     = "media"
+	MethodAvatar                    = "avatar"
+	MethodRefresh                   = "refresh"
+	MethodSetTelegramCredentials    = "setTelegramCredentials"
 )
 
 // ConnState describes where the daemon is in its lifecycle. The plugin keys
@@ -425,6 +426,7 @@ type ConfigResult struct {
 	PopoutMode                  string            `json:"popoutMode"`
 	KeyboardShortcuts           map[string]string `json:"keyboardShortcuts"`
 	KeepPreviousEmojiSearchText bool              `json:"keepPreviousEmojiSearchText"`
+	UnifiedInboxEnabled         bool              `json:"unifiedInboxEnabled"`
 	WhatsAppHistoryCacheMB      int               `json:"whatsappHistoryCacheMB"`
 	NotificationsEnabled        bool              `json:"notificationsEnabled"`
 	NotificationPreviews        bool              `json:"notificationPreviews"`
@@ -454,6 +456,10 @@ type SetKeyboardShortcutsParams struct {
 
 type SetEmojiSearchPreferenceParams struct {
 	KeepPreviousEmojiSearchText bool `json:"keepPreviousEmojiSearchText"`
+}
+
+type SetUnifiedInboxPreferenceParams struct {
+	Enabled bool `json:"enabled"`
 }
 
 type SetWhatsAppHistoryCacheParams struct {
