@@ -90,9 +90,11 @@ func (b *Backend) CreateConversation(ctx context.Context, p wire.CreateConversat
 	conversation := wire.Conversation{ID: jid.String(), Name: name, Timestamp: time.Now().UnixMicro(), IsGroup: group, AvatarColor: avatarColor(jid.String()), Initials: initials(name)}
 	b.mu.Lock()
 	b.convs[conversation.ID] = conversation
+	gen := b.gen
 	b.reorderLocked()
 	b.saveStoreLocked()
 	b.emitLocked(wire.EventConversation, conversation)
 	b.mu.Unlock()
+	b.queueAvatarFetches(gen, []string{conversation.ID})
 	return conversation, nil
 }

@@ -11,7 +11,7 @@ import tempfile
 
 repo = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description="Run isolated native QML fixtures")
-parser.add_argument("--fixture", choices=["shell", "pagination", "readability", "media", "popout", "review", "panel-keyboard", "panel-emoji-search", "updates", "whatsapp-history-settings"])
+parser.add_argument("--fixture", choices=["shell", "pagination", "readability", "media", "avatar", "popout", "review", "panel-keyboard", "panel-emoji-search", "updates", "whatsapp-history-settings"])
 args = parser.parse_args()
 go_cache = subprocess.check_output(["go", "env", "GOCACHE"], text=True,
                                  env=dict(os.environ, GOTOOLCHAIN="local", GOPROXY="off")).strip()
@@ -25,8 +25,10 @@ with tempfile.TemporaryDirectory(prefix="omachat-qml-") as folder:
     (config / "Chat").symlink_to(repo)
     image = config / "demo.svg"
     image.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#80a0c0"/></svg>')
+    image_second = config / "demo-second.svg"
+    image_second.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#c080a0"/></svg>')
     (config / "shell.qml").write_text((repo / "tests/qml/shell.qml").read_text())
-    env = dict(os.environ, QT_QPA_PLATFORM="wayland", QT_QPA_PLATFORMTHEME="", QT_QUICK_CONTROLS_STYLE="Basic", OMACHAT_TEST_IMAGE=str(image))
+    env = dict(os.environ, QT_QPA_PLATFORM="wayland", QT_QPA_PLATFORMTHEME="", QT_QUICK_CONTROLS_STYLE="Basic", OMACHAT_TEST_IMAGE=str(image), OMACHAT_TEST_IMAGE_SECOND=str(image_second))
     if args.fixture:
         (config / "shell.qml").write_text((repo / ("tests/qml/" + args.fixture + ".qml")).read_text())
         result = subprocess.run(["qs", "-p", str(config)], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
@@ -66,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix="omachat-qml-") as folder:
     if result.returncode or "OMACHAT_POPOUT_PASS" not in result.stdout or "OMACHAT_POPOUT_FAIL" in result.stdout or "ERROR" in result.stdout:
         raise SystemExit(1)
 
-    for fixture, marker in (("review", "OMACHAT_REVIEW"), ("panel-keyboard", "OMACHAT_PANEL_KEYBOARD"), ("panel-emoji-search", "OMACHAT_PANEL_EMOJI_SEARCH"), ("updates", "OMACHAT_UPDATES"), ("whatsapp-history-settings", "OMACHAT_WHATSAPP_HISTORY_SETTINGS")):
+    for fixture, marker in (("review", "OMACHAT_REVIEW"), ("panel-keyboard", "OMACHAT_PANEL_KEYBOARD"), ("panel-emoji-search", "OMACHAT_PANEL_EMOJI_SEARCH"), ("updates", "OMACHAT_UPDATES"), ("whatsapp-history-settings", "OMACHAT_WHATSAPP_HISTORY_SETTINGS"), ("avatar", "OMACHAT_AVATAR")):
         (config / "shell.qml").write_text((repo / ("tests/qml/" + fixture + ".qml")).read_text())
         result = subprocess.run(["qs", "-p", str(config)], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
         print(result.stdout)
