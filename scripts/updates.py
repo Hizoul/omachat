@@ -134,11 +134,13 @@ def update_state(action):
 def build():
     target = ROOT / 'bin'
     target.mkdir(exist_ok=True)
-    with (target / '.build.lock').open('a') as lock:
+    cache = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'omachat'
+    cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (cache / 'build.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         source = source_id()
         release = installed()
-        fd, name = tempfile.mkstemp(dir=target, prefix='.omachatd-')
+        fd, name = tempfile.mkstemp(dir=cache, prefix='.omachatd-')
         os.close(fd)
         try:
             env = dict(os.environ, GOPROXY='off', GOSUMDB='off', GOTOOLCHAIN='local', CGO_ENABLED='1')
